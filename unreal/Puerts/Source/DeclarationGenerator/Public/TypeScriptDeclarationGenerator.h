@@ -56,12 +56,15 @@ struct DECLARATIONGENERATOR_API FTypeScriptDeclarationGenerator
 
     std::map<UObject*, FString> NamespaceMap;
 
+    std::map<UObject*, bool> PathIsValidMap;
+
     struct BlueprintTypeDeclInfo
     {
         TMap<FName, FString> NameToDecl;
         FString FileVersionString;
         bool IsExist;
         bool Changed;
+        bool IsAssociation;
     };
 
     TMap<FName, BlueprintTypeDeclInfo> BlueprintTypeDeclInfoCache;
@@ -69,6 +72,8 @@ struct DECLARATIONGENERATOR_API FTypeScriptDeclarationGenerator
     TArray<FAssetData> AssetList;
 
     bool RefFromOuter = false;
+
+    bool BeginGenAssetData = false;
 
     const FString& GetNamespace(UObject* Obj);
 
@@ -80,9 +85,9 @@ struct DECLARATIONGENERATOR_API FTypeScriptDeclarationGenerator
 
     void WriteOutput(UObject* Obj, const FStringBuffer& Buff);
 
-    void RestoreBlueprintTypeDeclInfos();
+    void RestoreBlueprintTypeDeclInfos(bool InGenFull);
 
-    void RestoreBlueprintTypeDeclInfos(const FString& FileContent);
+    void RestoreBlueprintTypeDeclInfos(const FString& FileContent, bool InGenFull);
 
     void LoadAllWidgetBlueprint(FName InSearchPath, bool InGenFull);
 
