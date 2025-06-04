@@ -10,6 +10,7 @@
 
 #include <cstdio>
 
+#include "IScriptGeneratorPluginInterface.h"
 #include "Modules/ModuleManager.h"
 #include "CoreMinimal.h"
 

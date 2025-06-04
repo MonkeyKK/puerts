@@ -9,10 +9,8 @@ using System;
 using System.IO;
 using UnrealBuildTool;
 
-public class DeclarationGenerator : ModuleRules 
-{
-    public DeclarationGenerator(ReadOnlyTargetRules Target) : base(Target) 
-    {
+public class DeclarationGenerator : ModuleRules {
+    public DeclarationGenerator(ReadOnlyTargetRules target) : base(target) {
         PublicIncludePaths.AddRange(
             new string[] {
                 "Programs/UnrealHeaderTool/Public",
@@ -50,10 +48,7 @@ public class DeclarationGenerator : ModuleRules
             );
         }
         
-        if (JsEnv.WithSourceControl)
-        {
-            PrivateDependencyModuleNames.Add("PuertsEditor");
-        }
+        bEnableUndefinedIdentifierWarnings = false; // 避免在VS 2017编译时出现C4668错误
 
         //PublicDefinitions.Add(string.Format("DECL_OUTPUT_PATH={0}", Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "..", "Content", "Scripts"))));
     }

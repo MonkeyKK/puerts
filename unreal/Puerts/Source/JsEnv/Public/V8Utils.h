@@ -12,11 +12,15 @@
 
 #include "CoreMinimal.h"
 #include "CoreUObject.h"
-#include "NamespaceDef.h"
-#include "DataTransfer.h"
-#include "UECompatible.h"
 
-namespace PUERTS_NAMESPACE
+#pragma warning(push, 0)
+#include "libplatform/libplatform.h"
+#include "v8.h"
+#pragma warning(pop)
+
+#include "DataTransfer.h"
+
+namespace puerts
 {
 enum ArgType
 {
@@ -28,7 +32,7 @@ enum ArgType
     EArgObject
 };
 
-class JSENV_API FV8Utils
+class FV8Utils
 {
 public:
     FORCEINLINE static void ThrowException(v8::Isolate* Isolate, const FString& Message)
@@ -70,7 +74,7 @@ public:
     FORCEINLINE static UObject* GetUObject(v8::Local<v8::Context>& Context, v8::Local<v8::Value> Value, int Index = 0)
     {
         auto UEObject = reinterpret_cast<UObject*>(GetPointer(Context, Value, Index));
-        return (!UEObject || (UEObject != RELEASED_UOBJECT && UEObject->IsValidLowLevelFast() && !UEObjectIsPendingKill(UEObject)))
+        return (!UEObject || (UEObject != RELEASED_UOBJECT && UEObject->IsValidLowLevelFast() && !UEObject->IsPendingKill()))
                    ? UEObject
                    : RELEASED_UOBJECT;
     }
@@ -78,7 +82,7 @@ public:
     FORCEINLINE static UObject* GetUObject(v8::Local<v8::Object> Object, int Index = 0)
     {
         auto UEObject = reinterpret_cast<UObject*>(GetPointer(Object, Index));
-        return (!UEObject || (UEObject != RELEASED_UOBJECT && UEObject->IsValidLowLevelFast() && !UEObjectIsPendingKill(UEObject)))
+        return (!UEObject || (UEObject != RELEASED_UOBJECT && UEObject->IsValidLowLevelFast() && !UEObject->IsPendingKill()))
                    ? UEObject
                    : RELEASED_UOBJECT;
     }
@@ -90,7 +94,7 @@ public:
 
     FORCEINLINE static v8::Local<v8::String> InternalString(v8::Isolate* Isolate, const FString& String)
     {
-        return ToV8String(Isolate, String);
+        return v8::String::NewFromUtf8(Isolate, TCHAR_TO_UTF8(*String), v8::NewStringType::kNormal).ToLocalChecked();
     }
 
     FORCEINLINE static v8::Local<v8::String> InternalString(v8::Isolate* Isolate, const char* String)
@@ -98,7 +102,10 @@ public:
         return v8::String::NewFromUtf8(Isolate, String, v8::NewStringType::kNormal).ToLocalChecked();
     }
 
-    static FString ToFString(v8::Isolate* Isolate, v8::Local<v8::Value> Value);
+    FORCEINLINE static FString ToFString(v8::Isolate* Isolate, v8::Local<v8::Value> Value)
+    {
+        return UTF8_TO_TCHAR(*(v8::String::Utf8Value(Isolate, Value)));
+    }
 
     FORCEINLINE static FName ToFName(v8::Isolate* Isolate, v8::Local<v8::Value> Value)
     {
@@ -137,7 +144,10 @@ public:
         return ToV8String(Isolate, String.ToString());
     }
 
-    static v8::Local<v8::String> ToV8String(v8::Isolate* Isolate, const TCHAR* String);
+    FORCEINLINE static v8::Local<v8::String> ToV8String(v8::Isolate* Isolate, const TCHAR* String)
+    {
+        return v8::String::NewFromUtf8(Isolate, TCHAR_TO_UTF8(String), v8::NewStringType::kNormal).ToLocalChecked();
+    }
 
     FORCEINLINE static v8::Local<v8::String> ToV8String(v8::Isolate* Isolate, const char* String)
     {
@@ -200,31 +210,26 @@ public:
         {
             v8::Local<v8::Context> Context(Isolate->GetCurrentContext());
 
+            // 输出 (filename):(line number): (message).
+            v8::String::Utf8Value FileName(Isolate, Message->GetScriptResourceName());
+            int LineNum = Message->GetLineNumber(Context).FromJust();
+            FString FileNameStr(*FileName);
+            FString LineNumStr = FString::FromInt(LineNum);
+            FString FileInfoStr;
+            FileInfoStr.Append(FileNameStr).Append(":").Append(LineNumStr).Append(": ").Append(ExceptionStr);
+
+            FString FinalReport;
+            FinalReport.Append(FileInfoStr).Append("\n");
+
             // 输出调用栈信息
             v8::Local<v8::Value> StackTrace;
             if (TryCatch->StackTrace(Context).ToLocal(&StackTrace))
             {
                 v8::String::Utf8Value StackTraceVal(Isolate, StackTrace);
                 FString StackTraceStr(*StackTraceVal);
-                ExceptionStr.Append("\n").Append(StackTraceStr);
+                FinalReport.Append("\n").Append(StackTraceStr);
             }
-            else
-            {
-                // (filename:line:number).
-                v8::String::Utf8Value FileName(Isolate, Message->GetScriptResourceName());
-                FString FileInfoStr = TEXT("(");
-                FileInfoStr.Append(*FileName);
-                int LineNum = Message->GetLineNumber(Context).FromJust();
-                int StartColumn = Message->GetStartColumn();
-                FileInfoStr.Append(":")
-                    .Append(FString::FromInt(LineNum))
-                    .Append(": ")
-                    .Append(FString::FromInt(StartColumn))
-                    .Append(")");
-
-                ExceptionStr.Append(TEXT(" at ")).Append(FileInfoStr).Append("\n");
-            }
-            return ExceptionStr;
+            return FinalReport;
         }
     }
 
@@ -309,7 +314,7 @@ public:
         return true;
     }
 };
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts
 
 #define CHECK_V8_ARGS_LEN(Length)                     \
     if (!FV8Utils::CheckArgumentLength(Info, Length)) \

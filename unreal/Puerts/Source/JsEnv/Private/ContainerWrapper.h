@@ -17,16 +17,12 @@
 #include "ObjectMapper.h"
 #include "JSLogger.h"
 
-#include "NamespaceDef.h"
-
-PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
-PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class FPropertyTranslator;
 FORCEINLINE int32 GetSizeWithAlignment(PropertyMacro* InProperty)
@@ -82,11 +78,7 @@ struct FScriptArrayEx
     FORCEINLINE static void Empty(FScriptArray* ScriptArray, PropertyMacro* Property)
     {
         Destruct(ScriptArray, Property, 0, ScriptArray->Num());
-#if ENGINE_MAJOR_VERSION > 4
-        ScriptArray->Empty(0, GetSizeWithAlignment(Property), __STDCPP_DEFAULT_NEW_ALIGNMENT__);
-#else
         ScriptArray->Empty(0, GetSizeWithAlignment(Property));
-#endif
     }
 };
 
@@ -257,7 +249,28 @@ public:
     static void New(const v8::FunctionCallbackInfo<v8::Value>& Info)
     {
         v8::Isolate* Isolate = Info.GetIsolate();
-        FV8Utils::ThrowException(Isolate, "Container Constructor no support yet");
+        v8::HandleScope HandleScope(Isolate);
+        v8::Local<v8::Context> Context = Isolate->GetCurrentContext();
+
+        auto Self = Info.This();
+
+        if (Info.Length() == 2 && Info[0]->IsExternal())    // Call by Native
+        {
+            T* Ptr = reinterpret_cast<T*>(v8::Local<v8::External>::Cast(Info[0])->Value());
+            bool PassByPointer = Info[1]->BooleanValue(Isolate);
+            if (PassByPointer)
+            {
+                FV8Utils::IsolateData<IObjectMapper>(Isolate)->BindContainer(Ptr, Self, OnGarbageCollected);
+            }
+            else
+            {
+                FV8Utils::IsolateData<IObjectMapper>(Isolate)->BindContainer(Ptr, Self, OnGarbageCollectedWithFree);
+            }
+        }
+        else    // Call by js new
+        {
+            FV8Utils::ThrowException(Isolate, "Container Constructor no support yet");
+        }
     }
 
     // TODO - 用doxygen注释
@@ -414,4 +427,4 @@ private:
 
     FORCEINLINE static void InternalGet(const v8::FunctionCallbackInfo<v8::Value>& Info, bool PassByPointer);
 };
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

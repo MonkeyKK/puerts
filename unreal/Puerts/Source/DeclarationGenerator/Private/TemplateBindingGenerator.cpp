@@ -4,20 +4,17 @@
 #include "JSClassRegister.h"
 #include "Interfaces/IPluginManager.h"
 #include "CoreUObject.h"
-#ifdef PUERTS_WITH_SOURCE_CONTROL
-#include "FileSystemOperation.h"
-#endif
 
 struct FGenImp
 {
     FStringBuffer Output{"", ""};
 
-    FString GetNamePrefix(const PUERTS_NAMESPACE::CTypeInfo* TypeInfo)
+    FString GetNamePrefix(const puerts::CTypeInfo* TypeInfo)
     {
         return TypeInfo->IsUEType() && !HadNamespace(TypeInfo->Name()) ? "UE." : "";
     }
 
-    FString GetName(const PUERTS_NAMESPACE::CTypeInfo* TypeInfo)
+    FString GetName(const puerts::CTypeInfo* TypeInfo)
     {
         return UTF8_TO_TCHAR(TypeInfo->Name());
     }
@@ -30,7 +27,7 @@ struct FGenImp
         Output << "    import {$Ref, $Nullable, cstring} from \"puerts\"\n\n";
     }
 
-    void GenArguments(const PUERTS_NAMESPACE::CFunctionInfo* Type, FStringBuffer& Buff)
+    void GenArguments(const puerts::CFunctionInfo* Type, FStringBuffer& Buff)
     {
         for (unsigned int i = 0; i < Type->ArgumentCount(); i++)
         {
@@ -64,7 +61,7 @@ struct FGenImp
                     Buff << "$Ref<";
                 }
 
-                const PUERTS_NAMESPACE::CTypeInfo* TypeInfo = Type->Argument(i);
+                const puerts::CTypeInfo* TypeInfo = Type->Argument(i);
                 Buff << GetNamePrefix(TypeInfo) << GetName(TypeInfo);
 
                 if (IsNullable)
@@ -79,29 +76,20 @@ struct FGenImp
         }
     }
 
-    void GenClass(const PUERTS_NAMESPACE::JSClassDefinition* ClassDefinition)
+    void GenClass(const puerts::JSClassDefinition* ClassDefinition)
     {
         if (HasUENamespace(ClassDefinition->ScriptName))
             return;
-
-        Output << "    ";
-
-        PUERTS_NAMESPACE::NamedFunctionInfo* ConstructorInfo = ClassDefinition->ConstructorInfos;
-        const bool IsNoConstructorInfos = !ConstructorInfo || !(ConstructorInfo->Name && ConstructorInfo->Type);
-        if (IsNoConstructorInfos)
-        {
-            Output << "abstract ";
-        }
-
-        Output << "class " << ClassDefinition->ScriptName;
+        Output << "    class " << ClassDefinition->ScriptName;
         if (ClassDefinition->SuperTypeId)
         {
-            Output << " extends " << PUERTS_NAMESPACE::FindClassByID(ClassDefinition->SuperTypeId)->ScriptName;
+            Output << " extends " << puerts::FindClassByID(ClassDefinition->SuperTypeId)->ScriptName;
         }
         Output << " {\n";
 
         TSet<FString> AddedFunctions;
 
+        puerts::NamedFunctionInfo* ConstructorInfo = ClassDefinition->ConstructorInfos;
         while (ConstructorInfo && ConstructorInfo->Name && ConstructorInfo->Type)
         {
             FStringBuffer Tmp;
@@ -116,7 +104,7 @@ struct FGenImp
             ++ConstructorInfo;
         }
 
-        PUERTS_NAMESPACE::NamedPropertyInfo* PropertyInfo = ClassDefinition->PropertyInfos;
+        puerts::NamedPropertyInfo* PropertyInfo = ClassDefinition->PropertyInfos;
         while (PropertyInfo && PropertyInfo->Name && PropertyInfo->Type)
         {
             Output << "        " << PropertyInfo->Name << ": " << GetNamePrefix(PropertyInfo->Type) << PropertyInfo->Type->Name()
@@ -124,7 +112,7 @@ struct FGenImp
             ++PropertyInfo;
         }
 
-        PUERTS_NAMESPACE::NamedPropertyInfo* VariableInfo = ClassDefinition->VariableInfos;
+        puerts::NamedPropertyInfo* VariableInfo = ClassDefinition->VariableInfos;
         while (VariableInfo && VariableInfo->Name && VariableInfo->Type)
         {
             int Pos = VariableInfo - ClassDefinition->VariableInfos;
@@ -133,7 +121,7 @@ struct FGenImp
             ++VariableInfo;
         }
 
-        PUERTS_NAMESPACE::NamedFunctionInfo* FunctionInfo = ClassDefinition->FunctionInfos;
+        puerts::NamedFunctionInfo* FunctionInfo = ClassDefinition->FunctionInfos;
         while (FunctionInfo && FunctionInfo->Name && FunctionInfo->Type)
         {
             FStringBuffer Tmp;
@@ -142,7 +130,7 @@ struct FGenImp
             {
                 Tmp << "(";
                 GenArguments(FunctionInfo->Type, Tmp);
-                const PUERTS_NAMESPACE::CTypeInfo* ReturnType = FunctionInfo->Type->Return();
+                const puerts::CTypeInfo* ReturnType = FunctionInfo->Type->Return();
                 Tmp << ") :" << GetNamePrefix(ReturnType) << GetName(ReturnType) << ";\n";
             }
             else
@@ -157,7 +145,7 @@ struct FGenImp
             ++FunctionInfo;
         }
 
-        PUERTS_NAMESPACE::NamedFunctionInfo* MethodInfo = ClassDefinition->MethodInfos;
+        puerts::NamedFunctionInfo* MethodInfo = ClassDefinition->MethodInfos;
         while (MethodInfo && MethodInfo->Name && MethodInfo->Type)
         {
             FStringBuffer Tmp;
@@ -166,7 +154,7 @@ struct FGenImp
             {
                 Tmp << "(";
                 GenArguments(MethodInfo->Type, Tmp);
-                const PUERTS_NAMESPACE::CTypeInfo* ReturnType = MethodInfo->Type->Return();
+                const puerts::CTypeInfo* ReturnType = MethodInfo->Type->Return();
                 Tmp << ") :" << GetNamePrefix(ReturnType) << GetName(ReturnType) << ";\n";
             }
             else
@@ -196,8 +184,8 @@ void UTemplateBindingGenerator::Gen_Implementation() const
 
     Gen.Begin();
 
-    PUERTS_NAMESPACE::ForeachRegisterClass(
-        [&](const PUERTS_NAMESPACE::JSClassDefinition* ClassDefinition)
+    puerts::ForeachRegisterClass(
+        [&](const puerts::JSClassDefinition* ClassDefinition)
         {
             if (ClassDefinition->TypeId && ClassDefinition->ScriptName)
             {
@@ -207,11 +195,7 @@ void UTemplateBindingGenerator::Gen_Implementation() const
 
     Gen.End();
 
-    const FString FilePath = FPaths::ProjectDir() / TEXT("Typing/cpp/index.d.ts");
-
-#ifdef PUERTS_WITH_SOURCE_CONTROL
-    PuertsSourceControlUtils::MakeSourceControlFileWritable(FilePath);
-#endif
-
-    FFileHelper::SaveStringToFile(Gen.Output.Buffer, *FilePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+    FFileHelper::SaveStringToFile(Gen.Output.Buffer,
+        *(IPluginManager::Get().FindPlugin("Puerts")->GetBaseDir() / TEXT("Typing/cpp/index.d.ts")),
+        FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 }

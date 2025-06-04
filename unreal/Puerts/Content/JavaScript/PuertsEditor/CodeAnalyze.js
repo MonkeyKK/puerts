@@ -33,10 +33,10 @@ function getCustomSystem() {
         console.log(s);
     }
     function readFile(path, encoding) {
-        let data = (0, puerts_1.$ref)(undefined);
+        let data = puerts_1.$ref(undefined);
         const res = UE.FileSystemOperation.ReadFile(path, data);
         if (res) {
-            return (0, puerts_1.$unref)(data);
+            return puerts_1.$unref(data);
         }
         else {
             console.warn("readFile: read file fail! path=" + path + ", stack:" + new Error().stack);
@@ -206,7 +206,7 @@ const PropertyFlags = {
     CPF_NativeAccessSpecifierPublic: 0x0010000000000000,
     CPF_NativeAccessSpecifierProtected: 0x0020000000000000,
     CPF_NativeAccessSpecifierPrivate: 0x0040000000000000,
-    CPF_SkipSerialization: 0x0080000000000000, ///< Property shouldn't be serialized, can still be exported to text
+    CPF_SkipSerialization: 0x0080000000000000,
 };
 const ELifetimeCondition = {
     "COND_InitialOnly": 1,
@@ -222,7 +222,7 @@ const ELifetimeCondition = {
     "COND_SimulatedOnlyNoReplay": 11,
     "COND_SimulatedOrPhysicsNoReplay": 12,
     "COND_SkipReplay": 13,
-    "COND_Never": 15, // This property will never be replicated						
+    "COND_Never": 15,
 };
 function readAndParseConfigFile(configFilePath) {
     let readResult = ts.readConfigFile(configFilePath, customSystem.readFile);
@@ -315,47 +315,6 @@ function watch(configFilePath) {
             service = ts.createLanguageService(servicesHost, ts.createDocumentRegistry());
         }
     }
-    let pendingBlueprintRefleshJobs = [];
-    function isChildOf(a, b) {
-        let baseTypes = a.getBaseTypes();
-        if (baseTypes.indexOf(b) >= 0) {
-            return true;
-        }
-        for (let i = 0; i < baseTypes.length; ++i) {
-            if (isChildOf(baseTypes[i], b)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    function topologicalSort(classes) {
-        const visited = new Set();
-        const result = [];
-        function visit(node) {
-            if (!visited.has(node)) {
-                visited.add(node);
-                for (const other of classes) {
-                    if (isChildOf(node.type, other.type)) {
-                        visit(other);
-                    }
-                }
-                result.push(node);
-            }
-        }
-        for (const cls of classes) {
-            visit(cls);
-        }
-        return result;
-    }
-    function refreshBlueprints() {
-        if (pendingBlueprintRefleshJobs.length > 0) {
-            pendingBlueprintRefleshJobs = topologicalSort(pendingBlueprintRefleshJobs);
-            pendingBlueprintRefleshJobs.forEach(job => {
-                job.op();
-            });
-            pendingBlueprintRefleshJobs = [];
-        }
-    }
     beginTime = new Date().getTime();
     let program = getProgramFromService();
     console.log("full compile using " + (new Date().getTime() - beginTime) + "ms");
@@ -419,7 +378,6 @@ function watch(configFilePath) {
                 fileVersions[fileName].processed = true;
             }
         });
-        refreshBlueprints();
         if (changed) {
             UE.FileSystemOperation.WriteFile(versionsFilePath, JSON.stringify(fileVersions, null, 4));
         }
@@ -429,44 +387,27 @@ function watch(configFilePath) {
     dirWatcher.OnChanged.Add((added, modified, removed) => {
         setTimeout(() => {
             var changed = false;
-            let modifiedFiles = [];
-            for (var i = 0; i < modified.Num(); i++) {
-                modifiedFiles.push(modified.Get(i));
-            }
-            let removedSet = new Set();
-            for (var i = 0; i < removed.Num(); i++) {
-                removedSet.add(removed.Get(i));
-            }
-            let addFiles = [];
-            for (var i = 0; i < added.Num(); i++) {
-                let fileName = added.Get(i);
-                //remove and add is the same as modified
-                if (removedSet.has(fileName)) {
-                    modifiedFiles.push(fileName);
-                }
-                else {
-                    addFiles.push(fileName);
-                }
-            }
-            if (addFiles.length > 0) {
+            if (added.Num() > 0) {
                 onFileAdded();
                 changed = true;
             }
-            modifiedFiles.forEach(fileName => {
-                if (fileName in fileVersions) {
-                    let md5 = UE.FileSystemOperation.FileMD5Hash(fileName);
-                    if (md5 === fileVersions[fileName].version) {
-                        console.log(fileName + " md5 not changed, so skiped!");
-                    }
-                    else {
-                        console.log(`${fileName} md5 from ${fileVersions[fileName].version} to ${md5}`);
-                        fileVersions[fileName].version = md5;
-                        onSourceFileAddOrChange(fileName, true);
-                        changed = true;
+            if (modified.Num() > 0) {
+                for (var i = 0; i < modified.Num(); i++) {
+                    const fileName = modified.Get(i);
+                    if (fileName in fileVersions) {
+                        let md5 = UE.FileSystemOperation.FileMD5Hash(fileName);
+                        if (md5 === fileVersions[fileName].version) {
+                            console.log(fileName + " md5 not changed, so skiped!");
+                        }
+                        else {
+                            console.log(`${fileName} md5 from ${fileVersions[fileName].version} to ${md5}`);
+                            fileVersions[fileName].version = md5;
+                            onSourceFileAddOrChange(fileName, true);
+                            changed = true;
+                        }
                     }
                 }
-            });
-            refreshBlueprints();
+            }
             if (changed) {
                 console.log("versions saved to " + versionsFilePath);
                 UE.FileSystemOperation.WriteFile(versionsFilePath, JSON.stringify(fileVersions, null, 4));
@@ -523,12 +464,12 @@ function watch(configFilePath) {
                                 console.log(`write ${output.name} ...`);
                                 UE.FileSystemOperation.WriteFile(output.name, output.text);
                             }
-                            if (output.name.endsWith(".js") || output.name.endsWith(".mjs")) {
+                            if (output.name.endsWith(".js")) {
                                 jsSource = output.text;
                                 if (options.outDir && output.name.startsWith(options.outDir)) {
                                     moduleFileName = output.name.substr(options.outDir.length + 1);
                                     modulePath = tsi.getDirectoryPath(moduleFileName);
-                                    moduleFileName = tsi.removeExtension(moduleFileName, output.name.endsWith(".js") ? ".js" : ".mjs");
+                                    moduleFileName = tsi.removeExtension(moduleFileName, ".js");
                                 }
                             }
                         });
@@ -565,15 +506,8 @@ function watch(configFilePath) {
                                 }
                                 if (baseTypeUClass) {
                                     if (isSubclassOf(type, "Subsystem")) {
-                                        console.error("do not support Subsystem " + checker.typeToString(type));
+                                        console.warn("do not support Subsystem " + checker.typeToString(type));
                                         return;
-                                    }
-                                    if (!baseTypeUClass.IsNative()) {
-                                        let moduleNames = getModuleNames(baseTypes[0]);
-                                        if (moduleNames.length > 1 && moduleNames[0] == 'ue') {
-                                            console.error(`${checker.typeToString(type)} extends a blueprint`);
-                                            return;
-                                        }
                                     }
                                     foundType = type;
                                     foundBaseTypeUClass = baseTypeUClass;
@@ -585,8 +519,7 @@ function watch(configFilePath) {
                         });
                         if (foundType && foundBaseTypeUClass) {
                             fileVersions[sourceFilePath].isBP = true;
-                            //onBlueprintTypeAddOrChange(foundBaseTypeUClass, foundType, modulePath);
-                            pendingBlueprintRefleshJobs.push({ type: foundType, op: () => onBlueprintTypeAddOrChange(foundBaseTypeUClass, foundType, modulePath) });
+                            onBlueprintTypeAddOrChange(foundBaseTypeUClass, foundType, modulePath);
                         }
                     }
                 }
@@ -626,7 +559,7 @@ function watch(configFilePath) {
                     }
                     else if (moduleNames.length == 2) {
                         let classPath = '/' + moduleNames[1] + '.' + type.symbol.getName();
-                        return UE.Field.Load(classPath, true);
+                        return UE.Field.Load(classPath);
                     }
                 }
                 else if (type.symbol && type.symbol.valueDeclaration) {
@@ -892,12 +825,6 @@ function watch(configFilePath) {
                             console.warn(`do not support non-static function [${x.name.getText()}] in BlueprintFunctionLibrary`);
                             return;
                         }
-                        if (x.name.getText() === 'ReceiveInit') {
-                            if (baseTypeUClass == UE.GameInstance.StaticClass() || baseTypeUClass.IsChildOf(UE.GameInstance.StaticClass())) {
-                                console.warn(`do not support override GameInstance.ReceiveInit in ${type.getSymbol().getName()}`);
-                                return;
-                            }
-                        }
                         properties.push(checker.getSymbolAtLocation(x.name));
                     }
                     else if (ts.isPropertyDeclaration(x) && !manualSkip(x)) {
@@ -909,7 +836,6 @@ function watch(configFilePath) {
                         properties.push(checker.getSymbolAtLocation(x.name));
                     }
                 });
-                let attachments = UE.NewMap(UE.BuiltinName, UE.BuiltinName);
                 properties
                     .filter(x => ts.isClassDeclaration(x.valueDeclaration.parent) && checker.getSymbolAtLocation(x.valueDeclaration.parent.name) == type.symbol)
                     .forEach((symbol) => {
@@ -986,32 +912,17 @@ function watch(configFilePath) {
                                     flags = flags | BigInt(PropertyFlags.CPF_Net);
                                 }
                                 flags = flags | getDecoratorFlagsValue(symbol.valueDeclaration, "flags", PropertyFlags);
-                                symbol.valueDeclaration.decorators.forEach((decorator) => {
-                                    let expression = decorator.expression;
-                                    if (ts.isCallExpression(expression)) {
-                                        if (expression.expression.getFullText().endsWith("uproperty.attach")) {
-                                            expression.arguments.forEach((value) => {
-                                                attachments.Add(symbol.getName(), value.getFullText().slice(1, -1));
-                                            });
-                                        }
-                                    }
-                                });
                             }
-                            if (hasDecorator(symbol.valueDeclaration, "edit_on_instance")) {
-                                flags &= ~BigInt(PropertyFlags.CPF_DisableEditOnInstance);
-                            }
-                            else {
-                                flags |= BigInt(PropertyFlags.CPF_DisableEditOnInstance);
+                            if (!hasDecorator(symbol.valueDeclaration, "edit_on_instance")) {
+                                flags = flags | BigInt(PropertyFlags.CPF_DisableEditOnInstance);
                             }
                             // bp.AddMemberVariable(symbol.getName(), propPinType.pinType, propPinType.pinValueType, Number(flags & 0xffffffffn), Number(flags >> 32n), cond);
                             bp.AddMemberVariableWithMetaData(symbol.getName(), propPinType.pinType, propPinType.pinValueType, Number(flags & 0xffffffffn), Number(flags >> 32n), cond, uemeta.compilePropertyMetaData(symbol));
                         }
                     }
                 });
-                bp.RemoveNotExistedComponent();
                 bp.RemoveNotExistedMemberVariable();
                 bp.RemoveNotExistedFunction();
-                bp.SetupAttachments(attachments);
                 bp.HasConstructor = hasConstructor;
                 bp.Save();
             }
@@ -1076,7 +987,6 @@ function watch(configFilePath) {
                 onSourceFileAddOrChange(key, true);
             }
         }
-        refreshBlueprints();
     }
     function dispatchCmd(cmd, args) {
         if (cmd == 'ls') {

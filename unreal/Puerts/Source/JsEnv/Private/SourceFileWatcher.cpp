@@ -10,9 +10,8 @@
 #include "DirectoryWatcherModule.h"
 #include "Modules/ModuleManager.h"
 #include "JSLogger.h"
-#include "Misc/ScopeLock.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 FSourceFileWatcher::FSourceFileWatcher(std::function<void(const FString&)> InOnWatchedFileChanged)
     : OnWatchedFileChanged(InOnWatchedFileChanged)
@@ -101,5 +100,5 @@ FSourceFileWatcher::~FSourceFileWatcher()
         DirectoryWatcher->UnregisterDirectoryChangedCallback_Handle(KV.Key, KV.Value);
     }
 }
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts
 #endif

@@ -12,25 +12,20 @@
 
 #include "CoreMinimal.h"
 #include "CoreUObject.h"
-#include "Runtime/Launch/Resources/Version.h"
 #include "PropertyMacros.h"
 
 #if ENGINE_MINOR_VERSION >= 25 || ENGINE_MAJOR_VERSION > 4
 #include "UObject/WeakFieldPtr.h"
 #endif
 
-#include "NamespaceDef.h"
+#pragma warning(push, 0)
 #include "ArrayBuffer.h"
 #include "JsObject.h"
-
-PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
-#pragma warning(push, 0)
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
-PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class FPropertyTranslator
 {
@@ -116,7 +111,6 @@ public:
         if (!OwnerIsClass)
         {
             if ((InProperty->IsA<StructPropertyMacro>() && StructProperty->Struct != FArrayBuffer::StaticStruct() &&
-                    StructProperty->Struct != FArrayBufferValue::StaticStruct() &&
                     StructProperty->Struct != FJsObject::StaticStruct()) ||
                 InProperty->IsA<MapPropertyMacro>() || InProperty->IsA<ArrayPropertyMacro>() || InProperty->IsA<SetPropertyMacro>())
             {
@@ -150,10 +144,13 @@ public:
         DelegatePropertyMacro* DelegateProperty;
         MulticastDelegatePropertyMacro* MulticastDelegateProperty;
         ClassPropertyMacro* ClassProperty;
-#if ENGINE_MINOR_VERSION >= 25 || ENGINE_MAJOR_VERSION > 4
-        FFieldPathProperty* FieldPathProperty;
-#endif
     };
+
+#if ENGINE_MINOR_VERSION < 25 && ENGINE_MAJOR_VERSION < 5
+    TWeakObjectPtr<PropertyMacro> PropertyWeakPtr;
+#else
+    TWeakFieldPtr<PropertyMacro> PropertyWeakPtr;
+#endif
 
     bool OwnerIsClass;
 
@@ -175,28 +172,5 @@ public:
     static void DelegateGetter(const v8::FunctionCallbackInfo<v8::Value>& Info);
 
     void SetAccessor(v8::Isolate* Isolate, v8::Local<v8::FunctionTemplate> Template);
-
-    bool IsPropertyValid()
-    {
-        if (!PropertyWeakPtr.IsValid())
-        {
-            return false;
-        }
-#if WITH_EDITOR
-        FProperty* TestP = PropertyWeakPtr.Get();
-        if (TestP != Property)
-        {
-            Init(TestP);
-        }
-#endif
-        return true;
-    }
-
-private:
-#if ENGINE_MINOR_VERSION < 25 && ENGINE_MAJOR_VERSION < 5
-    TWeakObjectPtr<PropertyMacro> PropertyWeakPtr;
-#else
-    TWeakFieldPtr<PropertyMacro> PropertyWeakPtr;
-#endif
 };
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

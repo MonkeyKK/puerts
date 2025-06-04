@@ -45,7 +45,7 @@
             if (--eventsCount === 0)
                 events = Object.create(null);
             else {
-                events[type] = undefined;
+                delete events[type];
             }
         } else if (typeof list !== 'function') {
             for (var i = list.length - 1; i >= 0; i--) {

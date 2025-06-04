@@ -9,115 +9,82 @@ var global = global || (function () { return this; }());
 (function (global) {
     "use strict";
     
-    let loadUEType = global.puerts.loadUEType;
+    let loadUEType = global.__tgjsLoadUEType;
+    global.__tgjsLoadUEType = undefined;
     
-    let loadCPPType = global.puerts.loadCPPType;
+    let loadCDataType = global.__tgjsLoadCDataType;
+    global.__tgjsLoadCDataType = undefined;
     
-    let getFNameString = global.puerts.getFNameString;
+    let cache = Object.create(null);
     
-    function rawSet(obj, key, val) {
-        Object.defineProperty(obj, key, {
-            value: val,
-            writable: true,
-            configurable: true,
-            enumerable: false,
-        });
-    }
-    
-    function interceptClass(cls) {
-        let cls_proxy = new Proxy(cls, {
-        get : function(cls, name) {
-                const fname = getFNameString(name);
-                const p = Object.getOwnPropertyDescriptor(cls, fname);
-                if (p) {
-                    Object.defineProperty(cls, name, p);
-                    return cls[fname];
-                }
+    let UE = new Proxy(cache, {
+        get: function(classWrapers, name) {
+            if (!(name in classWrapers)) {
+                classWrapers[name] = loadUEType(name);
             }
-        });
-        Object.setPrototypeOf(cls_proxy, Object.getPrototypeOf(cls));
-        Object.setPrototypeOf(cls, cls_proxy);
-    }
-    
-    let UE = Object.create(null);
-    let UE_proxy = new Proxy(UE, {
-        get : function(UE, name)
-        {
-            let cls = loadUEType(name);
-            rawSet(UE, name, cls);
-            interceptClass(cls);
-            return cls;
+            return classWrapers[name];
         }
     });
-    Object.setPrototypeOf(UE, UE_proxy);
-    Object.defineProperty(UE, "__esModule", {value: false});
-
+    
     const TNAMESPACE = 0;
     const TENUM = 1
     const TBLUEPRINT = 2;
     const TSTRUCT = 3
     
     function createNamespaceOrClass(path, parentDir, nodeType) {
-        let result = {__path: path, __parent:parentDir, __type:nodeType};
-        let result_proxy = new Proxy(result, {
+        return new Proxy({__path: path, __parent:parentDir, __type:nodeType}, {
             get: function(node, name) {
-                if (name === '__parent' || name === '__path') return undefined;
-                
-                if (node.__type == TENUM) { // auto load
-                    const res = createNamespaceOrClass(name, node, TNAMESPACE);
-                    rawSet(node, name, res);
-                    blueprint_load(res);
-                    return node[name];
-                } else {
-                    let newNodeType = node.__type;
+                if (!(name in node)) {
+                    if (name === '__parent' || name === '__path') return undefined;
                     
-                    if (newNodeType === TNAMESPACE) {
-                        let path = `/${name}.${name}`
-                        let c = node;
-                        while (c && c.__path) {
-                            path = `/${c.__path}${path}`
-                            c = c.__parent;
-                        }
-                        const obj = UE.Object.Load(path, true);
-                        if (obj) {
-                            const typeName = obj.GetClass().GetName();
-                            if (typeName === 'UserDefinedEnum') {
-                                newNodeType = TENUM;
-                            } else if (typeName === 'UserDefinedStruct') {
-                                newNodeType = TSTRUCT;
-                            } else {
-                                newNodeType = TBLUEPRINT;
+                    if (node.__type == TENUM) { // auto load
+                        node[name] = createNamespaceOrClass(name, node, TNAMESPACE);
+                        blueprint_load(node[name]);
+                    } else {
+                        let newNodeType = node.__type;
+                        
+                        if (newNodeType === TNAMESPACE) {
+                            let path = `/${name}.${name}`
+                            let c = node;
+                            while (c && c.__path) {
+                                path = `/${c.__path}${path}`
+                                c = c.__parent;
+                            }
+                            const obj = UE.Object.Load(path);
+                            if (obj) {
+                                const typeName = obj.GetClass().GetName();
+                                if (typeName === 'UserDefinedEnum') {
+                                    newNodeType = TENUM;
+                                } else if (typeName === 'UserDefinedStruct') {
+                                    newNodeType = TSTRUCT;
+                                } else {
+                                    newNodeType = TBLUEPRINT;
+                                }
                             }
                         }
+                        
+                        node[name] = createNamespaceOrClass(name, node, newNodeType);
                     }
-                    const res = createNamespaceOrClass(name, node, newNodeType);
-                    rawSet(node, name, res);
-                    return res;
                 }
+                return node[name];
             }
         });
-        Object.setPrototypeOf(result, result_proxy);
-        return result;
     }
     
-    rawSet(UE, "Game", createNamespaceOrClass("Game", undefined, TNAMESPACE));
+    cache["Game"] = createNamespaceOrClass("Game", undefined, TNAMESPACE);
     
     puerts.registerBuildinModule('ue', UE);
-    global.UE = UE;
     
-    let CPP = Object.create(null);
-    let CPP_proxy = new Proxy(CPP, {
-        get: function(CPP, name) {
-            let cls = loadCPPType(name);
-            rawSet(CPP, name, cls);
-            return cls;
+    let CPP = new Proxy(cache, {
+        get: function(classWrapers, name) {
+            if (!(name in classWrapers)) {
+                classWrapers[name] = loadCDataType(name);
+            }
+            return classWrapers[name];
         }
     });
-    Object.setPrototypeOf(CPP, CPP_proxy);
-    Object.defineProperty(CPP, "__esModule", {value: false});
     
     puerts.registerBuildinModule('cpp', CPP);
-    global.CPP = CPP;
     
     function ref(x) {
         return [x];
@@ -131,10 +98,10 @@ var global = global || (function () { return this; }());
         x[0] = val;
     }
     
-    rawSet(UE, 'NewObject', global.__tgjsNewObject);
+    cache.NewObject = global.__tgjsNewObject;
     global.__tgjsNewObject = undefined;
     
-    rawSet(UE, 'NewStruct', global.__tgjsNewStruct);
+    cache.NewStruct = global.__tgjsNewStruct;
     global.__tgjsNewStruct = undefined;
     
     puerts.$ref = ref;
@@ -143,14 +110,11 @@ var global = global || (function () { return this; }());
     puerts.merge = global.__tgjsMergeObject;
     global.__tgjsMergeObject = undefined;
     
-    rawSet(UE, 'FNameLiteral', global.__tgjsFNameToArrayBuffer);
+    cache.FNameLiteral = global.__tgjsFNameToArrayBuffer;
     global.__tgjsFNameToArrayBuffer = undefined;
     
     let rawmakeclass = global.__tgjsMakeUClass
     global.__tgjsMakeUClass = undefined;
-
-    puerts.setJsTakeRef = global.__tgjsSetJsTakeRef
-    global.__tgjsSetJsTakeRef = undefined
     
     function defaultUeConstructor(){};
     
@@ -190,7 +154,7 @@ var global = global || (function () { return this; }());
     
     function blueprint(path) {
         console.warn('deprecated! use blueprint.tojs instead');
-        let ufield = UE.Field.Load(path, true);
+        let ufield = UE.Field.Load(path);
         if (ufield) {
             let jsclass = UEClassToJSClass(ufield);
             jsclass.__puerts_ufield = ufield;
@@ -244,26 +208,16 @@ var global = global || (function () { return this; }());
     
     blueprint.unmixin = unmixin;
     
-    const bpns = new Set(['Game']);
-    
-    function blueprint_createNamespace(ns) {
-        if (!bpns.has(ns)) {
-            rawSet(UE, ns, createNamespaceOrClass(ns, undefined, TNAMESPACE));
-            bpns.add(ns);
-        }
-    }
-    
     function blueprint_load(cls) {
         if (cls.__path) {
             let c = cls
-            let path = `.${c.__path}`;
+            let path = `.${c.__path}`
             c = c.__parent;
             while (c && c.__path) {
                 path = `/${c.__path}${path}`
                 c = c.__parent;
             }
-            
-            let ufield = UE.Field.Load(path, true);
+            let ufield = UE.Field.Load(path);
             if (!ufield) {
                 throw new Error(`load ${path} fail!`);
             }
@@ -275,18 +229,17 @@ var global = global || (function () { return this; }());
                 jsclass.__name = cls.__path;
                 cls.__parent[cls.__path] = jsclass;
             }
-            interceptClass(jsclass);
+            
         } else {
             throw new Error("argument #0 is not a unload type");
         }
     }
     
     blueprint.load = blueprint_load;
-    blueprint.namespace = blueprint_createNamespace;
     
     function blueprint_unload(cls) {
         if (cls.__puerts_ufield) {
-            cls.__puerts_ufield = undefined;
+            delete cls.__puerts_ufield;
             if (cls.__parent) {
                 cls.__parent[cls.__name] = createNamespaceOrClass(cls.__name, cls.__parent);
             }
@@ -302,7 +255,7 @@ var global = global || (function () { return this; }());
     
     function translateType(t) {
         if (typeof t !== 'number') {
-            if (Object.hasOwnProperty(t, '__puerts_ufield')) {
+            if (t.hasOwnProperty('__puerts_ufield')) {
                 return t.__puerts_ufield
             } else {
                 return t.StaticClass();
@@ -315,79 +268,34 @@ var global = global || (function () { return this; }());
     function NewArray(t1) {
         t1 = translateType(t1);
 
-        var ret = newContainer(0, t1);
-        if (!("[Symbol.iterator]" in ret)) {
-            ret.constructor.prototype[Symbol.iterator] = function*() {
-                let index = 0;
-                let num = this.Num();
-                while (index < num) {
-                    yield this.Get(index);
-                    index++;
-                }
-            }
-        }
-        return ret;
+        return newContainer(0, t1);
     }
     
     function NewSet(t1) {
         t1 = translateType(t1);
         
-        var ret = newContainer(1, t1);
-        if (!("[Symbol.iterator]" in ret)) {
-            ret.constructor.prototype[Symbol.iterator] = function*() {
-                let index = 0;
-                let maxIndex = this.GetMaxIndex();
-                while (index < maxIndex) {
-                    if (this.IsValidIndex(index)) {
-                        yield this.Get(index);
-                    }
-                    index++;
-                }
-            }
-        }
-        return ret;
+        return newContainer(1, t1);
     }
     
     function NewMap(t1, t2) {
         t1 = translateType(t1);
         t2 = translateType(t2);
-
-        var ret = newContainer(2, t1, t2);
-        if (!("[Symbol.iterator]" in ret)) {
-            ret.constructor.prototype[Symbol.iterator] = function*() {
-                let index = 0;
-                let maxIndex = this.GetMaxIndex();
-                while (index < maxIndex) {
-                    if (this.IsValidIndex(index)) {
-                        let key = this.GetKey(index);
-                        let value = this.Get(key);
-                        yield [key, value];
-                    }
-                    index++;
-                }
-            }
-        }
-        return ret;
+        
+        return newContainer(2, t1, t2);
     }
     
-    rawSet(UE, 'BuiltinBool', 0);
-    rawSet(UE, 'BuiltinByte', 1);
-    rawSet(UE, 'BuiltinInt', 2);
-    rawSet(UE, 'BuiltinFloat', 3);
-    rawSet(UE, 'BuiltinDouble', 4);
-    rawSet(UE, 'BuiltinInt64', 5);
-    rawSet(UE, 'BuiltinString', 6);
-    rawSet(UE, 'BuiltinText', 7);
-    rawSet(UE, 'BuiltinName', 8);
+    cache.BuiltinBool = 0;
+    cache.BuiltinByte = 1;
+    cache.BuiltinInt = 2;
+    cache.BuiltinFloat = 3;
+    cache.BuiltinInt64 = 4;
+    cache.BuiltinString = 5;
+    cache.BuiltinText = 6;
+    cache.BuiltinName = 7;
     
-    // call once to inject iterators to constructor
-    NewArray(UE.BuiltinInt);
-    NewSet(UE.BuiltinInt);
-    NewMap(UE.BuiltinInt, UE.BuiltinInt);
-    
-    rawSet(UE, 'NewArray', NewArray);
-    rawSet(UE, 'NewSet', NewSet);
-    rawSet(UE, 'NewMap', NewMap);
+    cache.NewArray = NewArray;
+    cache.NewSet = NewSet;
+    cache.NewMap = NewMap;
     
     const FunctionFlags = {
         FUNC_None                : 0x00000000,
@@ -604,17 +512,17 @@ var global = global || (function () { return this; }());
         return () => {};
     }
     
-    rawSet(UE, 'rpc', {
+    cache.rpc = {
         "FunctionFlags" : FunctionFlags,
         "PropertyFlags" : PropertyFlags,
         "ELifetimeCondition" : ELifetimeCondition,
         "flags" : dummyDecorator,
         "condition" : dummyDecorator
-    });
+    }
     
     const MetaDataInst = '';
     
-    rawSet(UE, 'uclass', {
+    cache.uclass = {
         //  the class specifier
         "ClassGroup": MetaDataInst,
         "Within": MetaDataInst,
@@ -659,7 +567,7 @@ var global = global || (function () { return this; }());
         "CustomThunkTemplates": MetaDataInst,
         //  decorator to add class specifier
         "uclass": dummyDecorator,
-        //  metadata of class
+        //  meta data of class
         "ToolTip": MetaDataInst,
         "ShortTooltip": MetaDataInst,
         "DocumentationPolicy": MetaDataInst,
@@ -680,11 +588,11 @@ var global = global || (function () { return this; }());
         "ExposedAsyncProxy": MetaDataInst,
         "BlueprintThreadSafe": MetaDataInst,
         "UsesHierarchy": MetaDataInst,
-        //  decorator to add class metadata
+        //  decorator to add class meta data
         "umeta": dummyDecorator
-    });
+    }
 
-    rawSet(UE, 'ufunction', {
+    cache.ufunction = {
         //  the function specifier
         "BlueprintImplementableEvent": MetaDataInst,
         "BlueprintNativeEvent": MetaDataInst,
@@ -713,7 +621,7 @@ var global = global || (function () { return this; }());
         "InternalUseParam": MetaDataInst,
         //  decorator to add function specifier
         "ufunction": dummyDecorator,
-        //  type of metadata specifier
+        //  type of meta data specifier
         "ToolTip": MetaDataInst,
         "ShortTooltip": MetaDataInst,
         "DocumentationPolicy": MetaDataInst,
@@ -721,6 +629,7 @@ var global = global || (function () { return this; }());
         "ArrayParm": MetaDataInst,
         "ArrayTypeDependentParams": MetaDataInst,
         "AutoCreateRefTerm": MetaDataInst,
+        "BlueprintInternalUseOnly": MetaDataInst,
         "BlueprintProtected": MetaDataInst,
         "CallableWithoutWorldContext": MetaDataInst,
         "CommutativeAssociativeBinaryOperator": MetaDataInst,
@@ -760,11 +669,11 @@ var global = global || (function () { return this; }());
         "MapValueParam": MetaDataInst,
         "AnimBlueprintFunction": MetaDataInst,
         "ArrayParam": MetaDataInst,
-        //  decorator to add function metadata
+        //  decorator to add function meta data
         "umeta": dummyDecorator
-    });
+    }
 
-    rawSet(UE, 'uproperty', {
+    cache.uproperty = {
         //  the specifiers
         "Const": MetaDataInst,
         "Config": MetaDataInst,
@@ -875,10 +784,10 @@ var global = global || (function () { return this; }());
         "BitmaskEnum": MetaDataInst,
         //  decorator
         "umeta": dummyDecorator,
-        "attach": dummyDecorator
-    });
+    }
 
-    rawSet(UE, 'uparam', {
+    cache.uparam =
+    {
         //  the specifiers
         "Const": MetaDataInst,
         "Ref": MetaDataInst,
@@ -954,68 +863,25 @@ var global = global || (function () { return this; }());
         "BitmaskEnum": MetaDataInst,
         //  decorator
         "umeta": dummyDecorator,
-    });
+    }
 
-    rawSet(UE, 'edit_on_instance', dummyDecorator);
+    cache.edit_on_instance = dummyDecorator;
+    
+    cache.no_blueprint = dummyDecorator;
+    
+    cache.set_flags = dummyDecorator;
+    
+    cache.clear_flags = dummyDecorator;
+    
+    cache.FunctionFlags = FunctionFlags;
 
-    rawSet(UE, 'no_blueprint', dummyDecorator);
+    cache.ClassFlags = ClassFlags;
 
-    rawSet(UE, 'set_flags', dummyDecorator);
+    cache.PropertyFlags = PropertyFlags;
 
-    rawSet(UE, 'clear_flags', dummyDecorator);
-
-    rawSet(UE, 'FunctionFlags', FunctionFlags);
-
-    rawSet(UE, 'ClassFlags', ClassFlags);
-
-    rawSet(UE, 'PropertyFlags', PropertyFlags);
-
-    rawSet(UE, 'FunctionExportFlags', FunctionExportFlags);
+    cache.FunctionExportFlags = FunctionExportFlags;
 
     puerts.toManualReleaseDelegate = (x) => x;
     puerts.toDelegate = (o,k) => [o, k];
-
-    function mergePrototype(from, to, exclude) {
-        Object.getOwnPropertyNames(from).forEach(name => {
-            if (!(name in exclude)) {
-                Object.defineProperty(
-                    to,
-                    name,
-                    Object.getOwnPropertyDescriptor(from, name) ||
-                    Object.create(null)
-                );
-            }
-        });
-    }
-    puerts.__mergePrototype = mergePrototype
-    
-    function removeListItem(list, item) {
-        var found = false;
-        for (var i = 0; i < list.length; ++i) {
-            if (!found) {
-                found = (list[i] === item);
-            }
-            if (found) {
-                list[i] = list[i + 1]; // array[length + 1] === undefined
-            }
-        }
-        if (found) {
-            list.pop();
-        }
-    }
-    puerts.__removeListItem = removeListItem
-    
-    function genListApply(lst) {
-        return function(...args) {
-            const len = lst.length;
-            const list = lst.slice();
-            let ret
-            for (var i = 0; i < len; ++i) {
-                ret = Reflect.apply(list[i], this, args);
-            }
-            return ret;
-        }
-    }
-    puerts.__genListApply = genListApply
     
 }(global));

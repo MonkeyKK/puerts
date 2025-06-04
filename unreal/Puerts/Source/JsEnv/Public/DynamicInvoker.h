@@ -8,19 +8,16 @@
 
 #pragma once
 
-#include "NamespaceDef.h"
+#pragma warning(push, 0)
+#include "libplatform/libplatform.h"
+#include "v8.h"
+#pragma warning(pop)
 
 #include "CoreUObject.h"
 
-PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
-#pragma warning(push, 0)
-#include "v8.h"
-#pragma warning(pop)
-PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
-
 class UDynamicDelegateProxy;
 class UJSGeneratedFunction;
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class IDynamicInvoker
 {
@@ -37,4 +34,4 @@ public:
 #endif
 };
 
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

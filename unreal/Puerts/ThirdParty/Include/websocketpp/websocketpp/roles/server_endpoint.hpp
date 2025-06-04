@@ -72,11 +72,11 @@ public:
     }
 
     /// Destructor
-    ~server() {}
+    ~server<config>() {}
 
 #ifdef _WEBSOCKETPP_DEFAULT_DELETE_FUNCTIONS_
     // no copy constructor because endpoints are not copyable
-    server(server<config> &) = delete;
+    server<config>(server<config> &) = delete;
 
     // no copy assignment operator because endpoints are not copyable
     server<config> & operator=(server<config> const &) = delete;
@@ -84,7 +84,7 @@ public:
 
 #ifdef _WEBSOCKETPP_MOVE_SEMANTICS_
     /// Move constructor
-    server(server<config> && o) : endpoint<connection<config>,config>(std::move(o)) {}
+    server<config>(server<config> && o) : endpoint<connection<config>,config>(std::move(o)) {}
 
 #ifdef _WEBSOCKETPP_DEFAULT_DELETE_FUNCTIONS_
     // no move assignment operator because of const member variables

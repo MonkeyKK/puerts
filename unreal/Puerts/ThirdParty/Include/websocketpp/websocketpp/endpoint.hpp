@@ -109,7 +109,7 @@ public:
 
 
     /// Destructor
-    ~endpoint() {}
+    ~endpoint<connection,config>() {}
 
     #ifdef _WEBSOCKETPP_DEFAULT_DELETE_FUNCTIONS_
         // no copy constructor because endpoints are not copyable

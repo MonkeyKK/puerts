@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Tencent is pleased to support the open source community by making Puerts available.
  * Copyright (C) 2020 THL A29 Limited, a Tencent company.  All rights reserved.
  * Puerts is licensed under the BSD 3-Clause License, except for the third-party components listed in the file 'LICENSE' which may
@@ -6,32 +6,23 @@
  * which is part of this source code package.
  */
 
-// TODO: 静态库11.8 window调试崩溃
-
-#if defined(UE_GAME) || defined(UE_EDITOR) || defined(UE_SERVER) || defined(USING_IN_UNREAL_ENGINE)
+#if defined(UE_GAME) || defined(UE_EDITOR)
 #define USING_UE 1
 #else
 #define USING_UE 0
 #endif
 
-#if (PLATFORM_WINDOWS || PLATFORM_MAC || PLATFORM_LINUX || defined(WITH_INSPECTOR)) && !defined(WITHOUT_INSPECTOR)
+#if (PLATFORM_WINDOWS || PLATFORM_MAC || WITH_INSPECTOR) && !defined(WITHOUT_INSPECTOR)
 
 #include "V8InspectorImpl.h"
-
-#if USING_UE
-#include "UECompatible.h"
-#endif
 
 #include <functional>
 #include <string>
 #include <locale>
 #include <codecvt>
 
-PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push)
-#if defined(_MSC_VER)
 #pragma warning(disable : 4251)
-#endif
 #include "v8.h"
 #include "v8-inspector.h"
 #include "libplatform/libplatform.h"
@@ -43,7 +34,6 @@ PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #define _WEBSOCKETPP_CPP11_TYPE_TRAITS_
 #include "websocketpp/config/asio_no_tls.hpp"
 #include "websocketpp/server.hpp"
-PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #if USING_UE
 #include "Containers/Ticker.h"
@@ -55,12 +45,12 @@ PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 DEFINE_LOG_CATEGORY_STATIC(LogV8Inspector, Log, All);
 #endif
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class V8InspectorChannelImpl : public v8_inspector::V8Inspector::Channel, public V8InspectorChannel
 {
 public:
-    V8InspectorChannelImpl(v8::Isolate* InIsolate, v8_inspector::V8Inspector* InV8Inspector, const int32_t InCxtGroupID);
+    V8InspectorChannelImpl(const std::unique_ptr<v8_inspector::V8Inspector>& InV8Inspector, const int32_t InCxtGroupID);
 
     void DispatchProtocolMessage(const std::string& Message) override;
 
@@ -85,20 +75,13 @@ private:
     std::unique_ptr<v8_inspector::V8InspectorSession> V8InspectorSession;
 
     std::function<void(const std::string&)> OnSendMessage;
-
-    v8::Isolate* Isolate;
 };
 
 V8InspectorChannelImpl::V8InspectorChannelImpl(
-    v8::Isolate* InIsolate, v8_inspector::V8Inspector* InV8Inspector, const int32_t InCxtGroupID)
+    const std::unique_ptr<v8_inspector::V8Inspector>& InV8Inspector, const int32_t InCxtGroupID)
 {
     v8_inspector::StringView DummyState;
-    Isolate = InIsolate;
-#if V8_MAJOR_VERSION >= 10
-    V8InspectorSession = InV8Inspector->connect(InCxtGroupID, this, DummyState, v8_inspector::V8Inspector::kFullyTrusted);
-#else
     V8InspectorSession = InV8Inspector->connect(InCxtGroupID, this, DummyState);
-#endif
 }
 
 void V8InspectorChannelImpl::DispatchProtocolMessage(const std::string& Message)
@@ -108,11 +91,6 @@ void V8InspectorChannelImpl::DispatchProtocolMessage(const std::string& Message)
 
     v8_inspector::StringView StringView(MessagePtr, MessageLen);
 
-#ifdef THREAD_SAFE
-    v8::Locker Locker(Isolate);
-#endif
-    v8::Isolate::Scope IsolateScope(Isolate);
-    v8::SealHandleScope HandleScope(Isolate);
     V8InspectorSession->dispatchProtocolMessage(StringView);
 }
 
@@ -133,7 +111,6 @@ void V8InspectorChannelImpl::SendMessage(v8_inspector::StringBuffer& MessageBuff
     else
     {
 #if PLATFORM_WINDOWS
-#pragma warning(disable : 4996)
         std::wstring_convert<std::codecvt_utf8_utf16<uint16_t>, uint16_t> Conv;
         const uint16_t* Start = MessageView.characters16();
 #else
@@ -159,11 +136,7 @@ void V8InspectorChannelImpl::sendNotification(std::unique_ptr<v8_inspector::Stri
 
 class V8InspectorClientImpl : public V8Inspector,
 #if USING_UE
-#if ENGINE_MAJOR_VERSION >= 5
-                              public FTSTickerObjectBase,
-#else
                               public FTickerObjectBase,
-#endif
 #endif
                               public v8_inspector::V8InspectorClient
 {
@@ -191,11 +164,6 @@ public:
     bool Tick() override;
 
     V8InspectorChannel* CreateV8InspectorChannel() override;
-
-    v8::Local<v8::Context> ensureDefaultContextInGroup(int group_id) override
-    {
-        return Context.Get(Isolate);
-    }
 
 private:
     void OnHTTP(wspp_connection_hdl Handle);
@@ -227,11 +195,7 @@ private:
 
     int32_t Port;
 
-#if defined(V8_HAS_WRAP_API_WITHOUT_STL)
-    v8_inspector::V8Inspector* V8Inspector;
-#else
     std::unique_ptr<v8_inspector::V8Inspector> V8Inspector;
-#endif
 
     int32_t CtxGroupID;
 
@@ -262,9 +226,10 @@ void ReportException(const websocketpp::exception& Exception, const TCHAR* JobIn
     char* str = new char[len + 1];
     memset(str, 0, len + 1);
     WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, len, NULL, NULL);
-    delete[] wstr;
+    if (wstr)
+        delete[] wstr;
     UE_LOG(LogV8Inspector, Warning, TEXT("%s, errno:%d, message:%s"), JobInfo, Exception.code().value(), UTF8_TO_TCHAR(str));
-    delete[] str;
+    delete str;
 #else
     UE_LOG(LogV8Inspector, Warning, TEXT("%s, errno:%d, message:%s"), JobInfo, Exception.code().value(),
         ANSI_TO_TCHAR(Exception.what()));
@@ -281,11 +246,7 @@ void MicroTasksRunnerFunction(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
 V8InspectorClientImpl::V8InspectorClientImpl(int32_t InPort, v8::Local<v8::Context> InContext)
 #if USING_UE
-#if ENGINE_MAJOR_VERSION >= 5
-    : FTSTickerObjectBase(0.001f)
-#else
     : FTickerObjectBase(0.001f)
-#endif
 #endif
 {
     Isolate = InContext->GetIsolate();
@@ -296,15 +257,10 @@ V8InspectorClientImpl::V8InspectorClientImpl(int32_t InPort, v8::Local<v8::Conte
     IsAlive = false;
     Connected = false;
 
-    static int32_t CurrentCtxGroupID = 1;
-    CtxGroupID = CurrentCtxGroupID++;
+    CtxGroupID = 1;
     const uint8_t CtxNameConst[] = "V8InspectorContext";
     v8_inspector::StringView CtxName(CtxNameConst, sizeof(CtxNameConst) - 1);
-#if defined(V8_HAS_WRAP_API_WITHOUT_STL)
-    V8Inspector = V8Inspector_Create_Without_Stl(Isolate, this);
-#else
     V8Inspector = v8_inspector::V8Inspector::create(Isolate, this);
-#endif
     V8Inspector->contextCreated(v8_inspector::V8ContextInfo(InContext, CtxGroupID, CtxName));
 
     if (Port < 0)
@@ -361,8 +317,8 @@ V8InspectorClientImpl::V8InspectorClientImpl(int32_t InPort, v8::Local<v8::Conte
 #if USING_UE
         ReportException(Exception, TEXT("Failed to Startup Inspector"));
 #else
-        puerts::PLog(puerts::Error, "V8InspectorClientImpl: %s", Exception.what());
-        puerts::PLog(puerts::Error, "Failed to Startup Inspector.");
+        PLog(Error, "V8InspectorClientImpl: %s", Exception.what());
+        PLog(Error, "Failed to Startup Inspector.");
 #endif
     }
 
@@ -371,19 +327,12 @@ V8InspectorClientImpl::V8InspectorClientImpl(int32_t InPort, v8::Local<v8::Conte
 
 V8InspectorChannel* V8InspectorClientImpl::CreateV8InspectorChannel()
 {
-#if defined(V8_HAS_WRAP_API_WITHOUT_STL)
-    return new V8InspectorChannelImpl(Isolate, V8Inspector, CtxGroupID);
-#else
-    return new V8InspectorChannelImpl(Isolate, V8Inspector.get(), CtxGroupID);
-#endif
+    return new V8InspectorChannelImpl(V8Inspector, CtxGroupID);
 }
 
 V8InspectorClientImpl::~V8InspectorClientImpl()
 {
     Close();
-#if defined(V8_HAS_WRAP_API_WITHOUT_STL)
-    v8_inspector::V8Inspector_Destroy_Without_Stl(V8Inspector);
-#endif
 }
 
 void V8InspectorClientImpl::Close()
@@ -428,7 +377,7 @@ bool V8InspectorClientImpl::Tick(float /* DeltaTime */)
                 v8::Context::Scope ContextScope(LocalContext);
                 v8::TryCatch TryCatch(Isolate);
 
-                (void) (MicroTasksRunner.Get(Isolate)->Call(LocalContext, LocalContext->Global(), 0, nullptr));
+                MicroTasksRunner.Get(Isolate)->Call(LocalContext, LocalContext->Global(), 0, nullptr);
             }
         }
     }
@@ -437,7 +386,7 @@ bool V8InspectorClientImpl::Tick(float /* DeltaTime */)
 #if USING_UE
         ReportException(Exception, TEXT("Tick"));
 #else
-        puerts::PLog(puerts::Error, "Tick: %s", Exception.what());
+        PLog(Error, "Tick: %s", Exception.what());
 #endif
     }
     return true;
@@ -461,7 +410,7 @@ void V8InspectorClientImpl::OnHTTP(wspp_connection_hdl Handle)
 #if USING_UE
             UE_LOG(LogV8Inspector, Display, TEXT("request /json/list"));
 #else
-            puerts::PLog(puerts::Log, "request /json/list");
+            PLog(Log, "request /json/list");
 #endif
             Connection->set_body(JSONList);
             Connection->set_status(websocketpp::http::status_code::ok);
@@ -471,7 +420,7 @@ void V8InspectorClientImpl::OnHTTP(wspp_connection_hdl Handle)
 #if USING_UE
             UE_LOG(LogV8Inspector, Display, TEXT("request /json/version"));
 #else
-            puerts::PLog(puerts::Log, "request /json/version");
+            PLog(Log, "request /json/version");
 #endif
             Connection->set_body(JSONVersion);
             Connection->set_status(websocketpp::http::status_code::ok);
@@ -481,7 +430,7 @@ void V8InspectorClientImpl::OnHTTP(wspp_connection_hdl Handle)
 #if USING_UE
             UE_LOG(LogV8Inspector, Display, TEXT("404 Not Found"));
 #else
-            puerts::PLog(puerts::Log, "404 Not Found");
+            PLog(Log, "404 Not Found");
 #endif
             Connection->set_body("404 Not Found");
             Connection->set_status(websocketpp::http::status_code::not_found);
@@ -492,20 +441,20 @@ void V8InspectorClientImpl::OnHTTP(wspp_connection_hdl Handle)
 #if USING_UE
         ReportException(Exception, TEXT("OnHTTP"));
 #else
-        puerts::PLog(puerts::Error, "OnHTTP: %s", Exception.what());
+        PLog(Error, "OnHTTP: %s", Exception.what());
 #endif
     }
 }
 
 void V8InspectorClientImpl::OnOpen(wspp_connection_hdl Handle)
 {
-    V8InspectorChannelImpl* channel = static_cast<V8InspectorChannelImpl*>(CreateV8InspectorChannel());
+    V8InspectorChannelImpl* channel = new V8InspectorChannelImpl(V8Inspector, CtxGroupID);
     V8InspectorChannels[Handle.lock().get()] = channel;
     channel->OnMessage(std::bind(&V8InspectorClientImpl::OnSendMessage, this, Handle, std::placeholders::_1));
 #if USING_UE
     UE_LOG(LogV8Inspector, Display, TEXT("Inspector: Connect"));
 #else
-    puerts::PLog(puerts::Log, "Inspector: Connect");
+    PLog(Log, "Inspector: Connect");
 #endif
 }
 
@@ -514,7 +463,7 @@ void V8InspectorClientImpl::OnReceiveMessage(wspp_connection_hdl Handle, wspp_me
     //#if USING_UE
     //    UE_LOG(LogV8Inspector, Display, TEXT("<---: %s"), ANSI_TO_TCHAR(Message->get_payload().c_str()));
     //#else
-    //    puerts::PLog(puerts::Log, "<---: %s", Message->get_payload().c_str());
+    //    PLog(Log, "<---: %s", Message->get_payload().c_str());
     //#endif
     auto channel = V8InspectorChannels[Handle.lock().get()];
 
@@ -531,7 +480,7 @@ void V8InspectorClientImpl::OnSendMessage(wspp_connection_hdl Handle, const std:
     //#if USING_UE
     //    UE_LOG(LogV8Inspector, Display, TEXT("--->: %s"), ANSI_TO_TCHAR(Message.c_str()));
     //#else
-    //    puerts::PLog(puerts::Log, "--->: %s", Message.c_str());
+    //    PLog(Log, "--->: %s", Message.c_str());
     //#endif
 
     try
@@ -543,7 +492,7 @@ void V8InspectorClientImpl::OnSendMessage(wspp_connection_hdl Handle, const std:
 #if USING_UE
         ReportException(Exception, TEXT("OnSendMessage"));
 #else
-        puerts::PLog(puerts::Error, "OnSendMessage: %s", Exception.what());
+        PLog(Error, "OnSendMessage: %s", Exception.what());
 #endif
     }
 }
@@ -560,12 +509,8 @@ void V8InspectorClientImpl::OnClose(wspp_connection_hdl Handle)
 
 void V8InspectorClientImpl::OnFail(wspp_connection_hdl Handle)
 {
-    wspp_server::connection_ptr con = Server.get_con_from_hdl(Handle);
-    std::string message = con->get_ec().message();
 #if USING_UE
-    UE_LOG(LogV8Inspector, Error, TEXT("Connection OnFail %s"), UTF8_TO_TCHAR(message.c_str()));
-#else
-    puerts::PLog(puerts::Error, "Connection OnFail %s", message.c_str());
+    UE_LOG(LogV8Inspector, Error, TEXT("Connection OnFail"));
 #endif
 }
 
@@ -594,18 +539,18 @@ V8Inspector* CreateV8Inspector(int32_t Port, void* InContextPtr)
     v8::Local<v8::Context>* ContextPtr = static_cast<v8::Local<v8::Context>*>(InContextPtr);
     return new V8InspectorClientImpl(Port, *ContextPtr);
 }
-};    // namespace PUERTS_NAMESPACE
+};    // namespace puerts
 
 #else
 
 #include "V8InspectorImpl.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 V8Inspector* CreateV8Inspector(int32_t Port, void* InContextPtr)
 {
     return nullptr;
 }
-};    // namespace PUERTS_NAMESPACE
+};    // namespace puerts
 
 #endif    // WITH_EDITOR && (PLATFORM_WINDOWS || PLATFORM_MAC)

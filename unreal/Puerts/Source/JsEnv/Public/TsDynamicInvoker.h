@@ -8,14 +8,9 @@
 
 #pragma once
 
-#include "UObject/Stack.h"
-#include "UObject/Object.h"
-#include "UObject/Class.h"
-#include "PuertsNamespaceDef.h"
-
 class UTypeScriptGeneratedClass;
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class ITsDynamicInvoker
 {
@@ -27,4 +22,4 @@ public:
     virtual void NotifyReBind(UTypeScriptGeneratedClass* Class) = 0;
 };
 
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

@@ -7,7 +7,7 @@
  */
 
 #include "FFIBinding.h"
-#ifdef WITH_FFI
+#if WITH_FFI
 #include "JSClassRegister.h"
 #include "V8Utils.h"
 #if _MSC_VER
@@ -84,7 +84,7 @@ static void FFIPrepCif(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (Info.Length() != 5 || !IsArrayBuffer(Info[0]) || !IsArrayBuffer(Info[3]) || !IsArrayBuffer(Info[4]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "Bad parameters.");
+        puerts::FV8Utils::ThrowException(Isolate, "Bad parameters.");
         return;
     }
 
@@ -115,7 +115,7 @@ static void FFIPrepCifVar(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (Info.Length() != 6 || !IsArrayBuffer(Info[0]) || !IsArrayBuffer(Info[4]) || !IsArrayBuffer(Info[5]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "Bad parameters.");
+        puerts::FV8Utils::ThrowException(Isolate, "Bad parameters.");
         return;
     }
 
@@ -185,19 +185,19 @@ static void FFIAllocClosure(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: Uint32Array expected as #1 argument");
         return;
     }
 
     if (!Info[1]->IsFunction())
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: function expected as #2 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: function expected as #2 argument");
         return;
     }
 
     if (!Info[2]->IsNumber())
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: number expected as #3 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: number expected as #3 argument");
         return;
     }
 
@@ -210,7 +210,7 @@ static void FFIAllocClosure(const v8::FunctionCallbackInfo<v8::Value>& Info)
     ffi_closure* Closure = reinterpret_cast<ffi_closure*>(ffi_closure_alloc(sizeof(ffi_closure), &CodeLoc));
     if (!Closure)
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: alloc closure fail!");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: alloc closure fail!");
         return;
     }
 
@@ -223,7 +223,7 @@ static void FFIAllocClosure(const v8::FunctionCallbackInfo<v8::Value>& Info)
     if (status != FFI_OK)
     {
         ffi_closure_free(Closure);
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: ffi_prep_closure_loc fail!");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_alloc_closure: ffi_prep_closure_loc fail!");
         return;
     }
 
@@ -240,13 +240,13 @@ static void FFIFreeClosure(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_free_closure: invalid type for #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_free_closure: invalid type for #1 argument");
         return;
     }
 
     if (ArrayBufferLength(Info[0]) != sizeof(ClosureInfo))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_free_closure: #1 argument length not match");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_free_closure: #1 argument length not match");
         return;
     }
 
@@ -265,13 +265,13 @@ static void FFICall(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (Info.Length() != 4)
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_call(): requires 4 arguments!");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_call(): requires 4 arguments!");
         return;
     }
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_call(): Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ffi_call(): Uint32Array expected as #1 argument");
         return;
     }
 
@@ -279,7 +279,7 @@ static void FFICall(const v8::FunctionCallbackInfo<v8::Value>& Info)
     {
         if (Info[1]->Uint32Value(Context).ToChecked() >= GFuncArrayLength)
         {
-            PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_call(): function index out of range!");
+            puerts::FV8Utils::ThrowException(Isolate, "ffi_call(): function index out of range!");
             return;
         }
     }
@@ -297,7 +297,7 @@ static void FFICall(const v8::FunctionCallbackInfo<v8::Value>& Info)
         reinterpret_cast<ffi_cif*>(Cif), FFI_FN(FuncPtr), reinterpret_cast<void*>(ReturnPtr), reinterpret_cast<void**>(ArgsPtr));
 #if __OBJC__ || __OBJC2__
 //    } @catch (id ex) {
-//        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ffi_call() throw exeption!");
+//        puerts::FV8Utils::ThrowException(Isolate, "ffi_call() throw exeption!");
 //        return;
 //    }
 #endif
@@ -315,13 +315,13 @@ static void WritePointer(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "writePointer: Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "writePointer: Uint32Array expected as #1 argument");
         return;
     }
     auto Value = Info[1];
     if (!(Value->IsNull() || IsArrayBuffer(Value)))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "writePointer: Uint32Array expected as #3 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "writePointer: Uint32Array expected as #3 argument");
         return;
     }
 
@@ -355,7 +355,7 @@ static void ReadPointer(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "readPointer: Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "readPointer: Uint32Array expected as #1 argument");
         return;
     }
 
@@ -379,13 +379,13 @@ static void WriteUTF8String(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "WriteString: Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "WriteString: Uint32Array expected as #1 argument");
         return;
     }
 
     if (!Info[1]->IsString())
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "WriteString: string expected as #2 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "WriteString: string expected as #2 argument");
         return;
     }
 
@@ -394,7 +394,7 @@ static void WriteUTF8String(const v8::FunctionCallbackInfo<v8::Value>& Info)
     int64_t Offset = GetInt64(Info[2]);
     if (utf8Str.length() >= ArrayBufferLength(Info[0]) - Offset)
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "WriteString: no enough space");
+        puerts::FV8Utils::ThrowException(Isolate, "WriteString: no enough space");
         return;
     }
 
@@ -412,14 +412,14 @@ static void ReadUTF8String(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!IsArrayBuffer(Info[0]))
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "ReadCString: Uint32Array expected as #1 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "ReadCString: Uint32Array expected as #1 argument");
         return;
     }
 
     int64_t Offset = GetInt64(Info[1]);
     char* Ptr = ArrayBufferData(Info[0]) + Offset;
 
-    Info.GetReturnValue().Set(PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, Ptr));
+    Info.GetReturnValue().Set(puerts::FV8Utils::ToV8String(Isolate, Ptr));
 }
 
 static void UTF8Length(const v8::FunctionCallbackInfo<v8::Value>& Info)
@@ -432,7 +432,7 @@ static void UTF8Length(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     if (!Info[0]->IsString())
     {
-        PUERTS_NAMESPACE::FV8Utils::ThrowException(Isolate, "WriteString: string expected as #2 argument");
+        puerts::FV8Utils::ThrowException(Isolate, "WriteString: string expected as #2 argument");
         return;
     }
 
@@ -446,57 +446,57 @@ static void Init(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports)
     v8::Isolate* Isolate = Context->GetIsolate();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "ffi_prep_cif"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "ffi_prep_cif"),
             v8::FunctionTemplate::New(Isolate, FFIPrepCif)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "ffi_prep_cif_var"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "ffi_prep_cif_var"),
             v8::FunctionTemplate::New(Isolate, FFIPrepCifVar)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "ffi_call"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "ffi_call"),
             v8::FunctionTemplate::New(Isolate, FFICall)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "writePointer"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "writePointer"),
             v8::FunctionTemplate::New(Isolate, WritePointer)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "readPointer"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "readPointer"),
             v8::FunctionTemplate::New(Isolate, ReadPointer)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "writeUTF8String"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "writeUTF8String"),
             v8::FunctionTemplate::New(Isolate, WriteUTF8String)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "readUTF8String"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "readUTF8String"),
             v8::FunctionTemplate::New(Isolate, ReadUTF8String)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "UTF8Length"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "UTF8Length"),
             v8::FunctionTemplate::New(Isolate, UTF8Length)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "ffi_alloc_closure"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "ffi_alloc_closure"),
             v8::FunctionTemplate::New(Isolate, FFIAllocClosure)->GetFunction(Context).ToLocalChecked())
         .Check();
 
     Exports
-        ->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "ffi_free_closure"),
+        ->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "ffi_free_closure"),
             v8::FunctionTemplate::New(Isolate, FFIFreeClosure)->GetFunction(Context).ToLocalChecked())
         .Check();
 
-#define SET_FFI_ENUM(value)                                                                      \
-    Exports->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, #value), \
+#define SET_FFI_ENUM(value)                                                            \
+    Exports->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, #value), \
         v8::Integer::New(Isolate, (uint32_t) (value)), static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 
     SET_FFI_ENUM(FFI_OK);
@@ -511,8 +511,8 @@ static void Init(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports)
 
     auto Types = v8::Object::New(Isolate);
 
-#define SET_FFI_TYPE(key, value)                                                            \
-    Types->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, key), \
+#define SET_FFI_TYPE(key, value)                                                  \
+    Types->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, key), \
         WrapPointer(Isolate, reinterpret_cast<char*>(&value)), static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 
     SET_FFI_TYPE("void", ffi_type_void);
@@ -529,12 +529,12 @@ static void Init(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports)
     SET_FFI_TYPE("pointer", ffi_type_pointer);
 #undef SET_FFI_TYPE
 
-    Exports->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "FFI_TYPES"), Types).Check();
+    Exports->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "FFI_TYPES"), Types).Check();
 
     auto SizeOf = v8::Object::New(Isolate);
-#define SET_SIZEOF(key, type)                                                                \
-    SizeOf->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, key), \
-        v8::Integer::New(Isolate, static_cast<uint32_t>(sizeof(type))),                      \
+#define SET_SIZEOF(key, type)                                                      \
+    SizeOf->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, key), \
+        v8::Integer::New(Isolate, static_cast<uint32_t>(sizeof(type))),            \
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 
     SET_SIZEOF("uint8", uint8_t);
@@ -549,26 +549,26 @@ static void Init(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports)
     SET_SIZEOF("double", double);
     SET_SIZEOF("pointer", char*);
 #undef SET_SIZEOF
-    Exports->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "sizeof"), SizeOf).Check();
+    Exports->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "sizeof"), SizeOf).Check();
 
     auto AlignOf = v8::Object::New(Isolate);
 #if _MSC_VER
-#define SET_ALIGNOF(name, type)                                                                 \
-    struct s_##name                                                                             \
-    {                                                                                           \
-        type a;                                                                                 \
-    };                                                                                          \
-    AlignOf->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, #name), \
-        v8::Integer::New(Isolate, static_cast<uint32_t>(alignof(struct s_##name))),             \
+#define SET_ALIGNOF(name, type)                                                       \
+    struct s_##name                                                                   \
+    {                                                                                 \
+        type a;                                                                       \
+    };                                                                                \
+    AlignOf->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, #name), \
+        v8::Integer::New(Isolate, static_cast<uint32_t>(alignof(struct s_##name))),   \
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 #else
-#define SET_ALIGNOF(name, type)                                                                 \
-    struct s_##name                                                                             \
-    {                                                                                           \
-        type a;                                                                                 \
-    };                                                                                          \
-    AlignOf->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, #name), \
-        v8::Integer::New(Isolate, static_cast<uint32_t>(__alignof__(struct s_##name))),         \
+#define SET_ALIGNOF(name, type)                                                         \
+    struct s_##name                                                                     \
+    {                                                                                   \
+        type a;                                                                         \
+    };                                                                                  \
+    AlignOf->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, #name),   \
+        v8::Integer::New(Isolate, static_cast<uint32_t>(__alignof__(struct s_##name))), \
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 #endif
 
@@ -584,11 +584,11 @@ static void Init(v8::Local<v8::Context> Context, v8::Local<v8::Object> Exports)
     SET_ALIGNOF(double, double);
     SET_ALIGNOF(pointer, char*);
 #undef SET_ALIGNOF
-    Exports->Set(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, "alignof"), AlignOf).Check();
+    Exports->Set(Context, puerts::FV8Utils::ToV8String(Isolate, "alignof"), AlignOf).Check();
 
-#define SET_Property(key, value)                                                              \
-    Exports->DefineOwnProperty(Context, PUERTS_NAMESPACE::FV8Utils::ToV8String(Isolate, key), \
-        v8::Integer::New(Isolate, (uint32_t) (value)), static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
+#define SET_Property(key, value)                                                                                                   \
+    Exports->DefineOwnProperty(Context, puerts::FV8Utils::ToV8String(Isolate, key), v8::Integer::New(Isolate, (uint32_t) (value)), \
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete))
 
     SET_Property("FFI_ARG_SIZE", sizeof(ffi_arg));
     SET_Property("FFI_SARG_SIZE", sizeof(ffi_sarg));

@@ -10,14 +10,10 @@
 
 #include <memory>
 
-#include "NamespaceDef.h"
-
-PRAGMA_DISABLE_UNDEFINED_IDENTIFIER_WARNINGS
 #pragma warning(push, 0)
 #include "libplatform/libplatform.h"
 #include "v8.h"
 #pragma warning(pop)
-PRAGMA_ENABLE_UNDEFINED_IDENTIFIER_WARNINGS
 
 #include "DynamicInvoker.h"
 #include "FunctionTranslator.h"
@@ -41,9 +37,9 @@ public:
 
     v8::UniquePersistent<v8::Function> JsFunction;
 
-    TWeakPtr<PUERTS_NAMESPACE::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
+    TWeakPtr<puerts::IDynamicInvoker, ESPMode::ThreadSafe> DynamicInvoker;
 
-    std::unique_ptr<PUERTS_NAMESPACE::FFunctionTranslator> FunctionTranslator;
+    std::unique_ptr<puerts::FFunctionTranslator> FunctionTranslator;
 
     bool TakeJsObjectRef;
 

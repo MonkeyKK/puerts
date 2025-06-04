@@ -12,8 +12,6 @@
 #include "V8Utils.h"
 #if !defined(ENGINE_INDEPENDENT_JSENV)
 #include "Kismet/DataTableFunctionLibrary.h"
-#include "Components/SceneComponent.h"
-#include "Engine/World.h"
 #endif
 
 UsingUClass(UObject);
@@ -28,7 +26,7 @@ UsingUClass(UDataTableFunctionLibrary);
 #endif
 #ifdef PUERTS_FTEXT_AS_OBJECT
 UsingCppType(FText);
-static PUERTS_NAMESPACE::CFunctionInfoWithCustomSignature FormatSignature(
+static puerts::CFunctionInfoWithCustomSignature FormatSignature(
     "(Fmt: string | FText, ...InArguments: (string | number | FText) []) :FText");
 
 static void FText_Format(const v8::FunctionCallbackInfo<v8::Value>& Info)
@@ -40,15 +38,15 @@ static void FText_Format(const v8::FunctionCallbackInfo<v8::Value>& Info)
     auto P0 = Info[0];
     if (P0->IsString())
     {
-        Fmt = FTextFormat::FromString(PUERTS_NAMESPACE::FV8Utils::ToFString(Isolate, P0));
+        Fmt = FTextFormat::FromString(puerts::FV8Utils::ToFString(Isolate, P0));
     }
-    else if (::PUERTS_NAMESPACE::v8_impl::Converter<FText*>::accept(Context, P0))
+    else if (::puerts::converter::Converter<FText*>::accept(Context, P0))
     {
-        Fmt = *::PUERTS_NAMESPACE::v8_impl::Converter<FText*>::toCpp(Context, P0);
+        Fmt = *::puerts::converter::Converter<FText*>::toCpp(Context, P0);
     }
     else
     {
-        PUERTS_NAMESPACE::DataTransfer::ThrowException(Isolate, "Fmt expect a string or FText");
+        puerts::DataTransfer::ThrowException(Isolate, "Fmt expect a string or FText");
         return;
     }
     FFormatOrderedArguments Args;
@@ -64,33 +62,28 @@ static void FText_Format(const v8::FunctionCallbackInfo<v8::Value>& Info)
         }
         else if (Info[i]->IsString())
         {
-            Args.Add(FFormatArgumentValue(FText::FromString(PUERTS_NAMESPACE::FV8Utils::ToFString(Isolate, Info[i]))));
+            Args.Add(FFormatArgumentValue(FText::FromString(puerts::FV8Utils::ToFString(Isolate, Info[i]))));
         }
-        else if (Info[i]->IsObject() && ::PUERTS_NAMESPACE::v8_impl::Converter<FText*>::accept(Context, Info[i]))
+        else if (Info[i]->IsObject() && ::puerts::converter::Converter<FText*>::accept(Context, Info[i]))
         {
-            Args.Add(FFormatArgumentValue(*::PUERTS_NAMESPACE::v8_impl::Converter<FText*>::toCpp(Context, Info[i])));
+            Args.Add(FFormatArgumentValue(*::puerts::converter::Converter<FText*>::toCpp(Context, Info[i])));
         }
         else
         {
-            PUERTS_NAMESPACE::DataTransfer::ThrowException(Isolate, "InArguments expect a number/string/FText");
+            puerts::DataTransfer::ThrowException(Isolate, "InArguments expect a number/string/FText");
             return;
         }
     }
 
-    Info.GetReturnValue().Set(::PUERTS_NAMESPACE::v8_impl::Converter<FText>::toScript(Context, FText::Format(Fmt, Args)));
+    Info.GetReturnValue().Set(::puerts::converter::Converter<FText>::toScript(Context, FText::Format(Fmt, Args)));
 }
 #endif
 
-#if ENGINE_MAJOR_VERSION > 4
-UsingUClass(AActor);
-UsingUStruct(FHitResult)
-#endif
-
-    struct AutoRegisterForUE
+struct AutoRegisterForUE
 {
     AutoRegisterForUE()
     {
-        PUERTS_NAMESPACE::DefineClass<UObject>()
+        puerts::DefineClass<UObject>()
 #if ENGINE_MAJOR_VERSION > 4 || ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 23
             .Method("CreateDefaultSubobject",
                 SelectFunction(UObject * (UObject::*) (FName, UClass*, UClass*, bool, bool), &UObject::CreateDefaultSubobject))
@@ -101,43 +94,37 @@ UsingUStruct(FHitResult)
             .Method("GetName", SelectFunction(FString(UObjectBaseUtility::*)() const, &UObjectBaseUtility::GetName))
             .Method("GetOuter", MakeFunction(&UObject::GetOuter))
             .Method("GetClass", MakeFunction(&UObject::GetClass))
-            .Method("IsA", SelectFunction(bool (UObjectBaseUtility::*)(UClass*) const, &UObjectBaseUtility::IsA))
-            .Method("IsNative", MakeFunction(&UObjectBaseUtility::IsNative))
 #if !defined(ENGINE_INDEPENDENT_JSENV)
             .Method("GetWorld", MakeFunction(&UObject::GetWorld))
 #endif
             .Register();
 
-        PUERTS_NAMESPACE::DefineClass<UStruct>()
+        puerts::DefineClass<UStruct>()
             .Method("IsChildOf", SelectFunction(bool (UStruct::*)(const UStruct*) const, &UStruct::IsChildOf))
             .Register();
 
 #if !defined(ENGINE_INDEPENDENT_JSENV)
-        PUERTS_NAMESPACE::DefineClass<USceneComponent>()
+        puerts::DefineClass<USceneComponent>()
             .Method("SetupAttachment", MakeFunction(&USceneComponent::SetupAttachment))
             .Register();
 
-        PUERTS_NAMESPACE::DefineClass<UActorComponent>()
+        puerts::DefineClass<UActorComponent>()
             .Method("RegisterComponent", MakeFunction(&UActorComponent::RegisterComponent))
             .Register();
 
-        PUERTS_NAMESPACE::DefineClass<UDataTableFunctionLibrary>()
+        puerts::DefineClass<UDataTableFunctionLibrary>()
             .Function("Generic_GetDataTableRowFromName", MakeFunction(&UDataTableFunctionLibrary::Generic_GetDataTableRowFromName))
             .Register();
 #endif
 
 #ifdef PUERTS_FTEXT_AS_OBJECT
-        PUERTS_NAMESPACE::DefineClass<FText>()
+        puerts::DefineClass<FText>()
             .Constructor<>()    // make destructor available
             .Method("ToString", MakeFunction(&FText::ToString))
             .Function("FromStringTable", MakeFunction(&FText::FromStringTable))
             .Function("FromString", SelectFunction(FText(*)(const FString&), &FText::FromString))
             .Function("Format", FText_Format, &FormatSignature)
             .Register();
-#endif
-
-#if ENGINE_MAJOR_VERSION > 4
-        PUERTS_NAMESPACE::DefineClass<FHitResult>().Method("GetActor", MakeFunction(&FHitResult::GetActor)).Register();
 #endif
     }
 };

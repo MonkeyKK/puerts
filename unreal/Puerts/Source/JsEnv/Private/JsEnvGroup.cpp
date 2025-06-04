@@ -11,9 +11,8 @@
 #include "JsEnvImpl.h"
 #include "TsDynamicInvoker.h"
 #include "DynamicInvoker.h"
-#include "PuertsNamespaceDef.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class FGroupDynamicInvoker : public ITsDynamicInvoker, public IDynamicInvoker
 {
@@ -103,15 +102,15 @@ FJsEnvGroup::FJsEnvGroup(int Size, const FString& ScriptRoot)
 }
 
 FJsEnvGroup::FJsEnvGroup(int Size, std::shared_ptr<IJSModuleLoader> InModuleLoader, std::shared_ptr<ILogger> InLogger,
-    int InDebugStartPort, std::function<void(const FString&)> InOnSourceLoadedCallback, const FString InFlags,
-    void* InExternalRuntime, void* InExternalContext)
+    int InDebugStartPort, std::function<void(const FString&)> InOnSourceLoadedCallback, void* InExternalRuntime,
+    void* InExternalContext)
 {
     check(Size > 1);
     std::shared_ptr<IJSModuleLoader> SharedModuleLoader = std::move(InModuleLoader);
     for (int i = 0; i < Size; i++)
     {
-        JsEnvList.push_back(std::make_shared<FJsEnvImpl>(SharedModuleLoader, InLogger, InDebugStartPort + i,
-            InOnSourceLoadedCallback, InFlags, InExternalRuntime, InExternalContext));
+        JsEnvList.push_back(std::make_shared<FJsEnvImpl>(
+            SharedModuleLoader, InLogger, InDebugStartPort + i, InOnSourceLoadedCallback, InExternalRuntime, InExternalContext));
     }
     Init();
 }
@@ -182,5 +181,5 @@ void FJsEnvGroup::SetJsEnvSelector(std::function<int(UObject*, int)> InSelector)
     }
 }
 
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts
 #endif

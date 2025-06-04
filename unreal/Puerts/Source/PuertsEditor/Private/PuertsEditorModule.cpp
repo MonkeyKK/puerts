@@ -19,7 +19,6 @@
 #include "Binding.hpp"
 #include "UEDataBinding.hpp"
 #include "Object.hpp"
-#include "PString.h"
 
 class FPuertsEditorModule : public IPuertsEditorModule
 {
@@ -46,9 +45,9 @@ private:
 
     void OnPostEngineInit();
 
-    TSharedPtr<PUERTS_NAMESPACE::FJsEnv> JsEnv;
+    TSharedPtr<puerts::FJsEnv> JsEnv;
 
-    TSharedPtr<PUERTS_NAMESPACE::FSourceFileWatcher> SourceFileWatcher;
+    TSharedPtr<puerts::FSourceFileWatcher> SourceFileWatcher;
 
     bool Enabled = false;
 
@@ -63,7 +62,7 @@ struct AutoRegisterForPEM
 {
     AutoRegisterForPEM()
     {
-        PUERTS_NAMESPACE::DefineClass<FPuertsEditorModule>()
+        puerts::DefineClass<FPuertsEditorModule>()
             .Function("SetCmdCallback", MakeFunction(&FPuertsEditorModule::SetCmdCallback))
             .Register();
     }
@@ -75,10 +74,11 @@ IMPLEMENT_MODULE(FPuertsEditorModule, PuertsEditor)
 
 void FPuertsEditorModule::StartupModule()
 {
-    Enabled = IPuertsModule::Get().IsWatchEnabled() && !IsRunningCommandlet();
+    Enabled = IPuertsModule::Get().IsWatchEnabled();
 
     FEditorDelegates::PreBeginPIE.AddRaw(this, &FPuertsEditorModule::PreBeginPIE);
     FEditorDelegates::EndPIE.AddRaw(this, &FPuertsEditorModule::EndPIE);
+    FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPuertsEditorModule::OnPostEngineInit);
 
     ConsoleCommand = MakeUnique<FAutoConsoleCommand>(TEXT("Puerts"), TEXT("Puerts action"),
         FConsoleCommandWithArgsDelegate::CreateLambda(
@@ -104,7 +104,6 @@ void FPuertsEditorModule::StartupModule()
                     UE_LOG(Puerts, Error, TEXT("Puerts command not initialized"));
                 }
             }));
-    this->OnPostEngineInit();
 }
 
 TSharedPtr<FKismetCompilerContext> MakeCompiler(
@@ -119,7 +118,7 @@ void FPuertsEditorModule::OnPostEngineInit()
     {
         FKismetCompilerContext::RegisterCompilerForBP(UTypeScriptBlueprint::StaticClass(), &MakeCompiler);
 
-        SourceFileWatcher = MakeShared<PUERTS_NAMESPACE::FSourceFileWatcher>(
+        SourceFileWatcher = MakeShared<puerts::FSourceFileWatcher>(
             [this](const FString& InPath)
             {
                 if (JsEnv.IsValid())
@@ -127,7 +126,7 @@ void FPuertsEditorModule::OnPostEngineInit()
                     TArray<uint8> Source;
                     if (FFileHelper::LoadFileToArray(Source, *InPath))
                     {
-                        JsEnv->ReloadSource(InPath, puerts::PString((const char*) Source.GetData(), Source.Num()));
+                        JsEnv->ReloadSource(InPath, std::string((const char*) Source.GetData(), Source.Num()));
                     }
                     else
                     {
@@ -135,17 +134,15 @@ void FPuertsEditorModule::OnPostEngineInit()
                     }
                 }
             });
-        JsEnv = MakeShared<PUERTS_NAMESPACE::FJsEnv>(
-            std::make_shared<PUERTS_NAMESPACE::DefaultJSModuleLoader>(TEXT("JavaScript")),
-            std::make_shared<PUERTS_NAMESPACE::FDefaultLogger>(), -1,
+        JsEnv = MakeShared<puerts::FJsEnv>(std::make_shared<puerts::DefaultJSModuleLoader>(TEXT("JavaScript")),
+            std::make_shared<puerts::FDefaultLogger>(), -1,
             [this](const FString& InPath)
             {
                 if (SourceFileWatcher.IsValid())
                 {
                     SourceFileWatcher->OnSourceLoaded(InPath);
                 }
-            },
-            TEXT("--max-old-space-size=2048"));
+            });
 
         JsEnv->Start("PuertsEditor/CodeAnalyze");
     }

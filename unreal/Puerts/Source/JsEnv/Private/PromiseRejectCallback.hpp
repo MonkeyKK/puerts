@@ -1,15 +1,7 @@
 #pragma once
 #include <sstream>
-#include "PString.h"
-#if !defined(PUERTS_NAMESPACE)
-#if defined(WITH_QJS_NAMESPACE_SUFFIX)
-#define PUERTS_NAMESPACE puerts_qjs
-#else
-#define PUERTS_NAMESPACE puerts
-#endif
-#endif
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 template <typename T>
 inline void __USE(T&&)
@@ -72,7 +64,7 @@ void SetPromiseRejectCallback(const v8::FunctionCallbackInfo<v8::Value>& Args)
 
 // TODO: rename this file
 #ifndef WITH_QUICKJS
-PString StackTraceToString(v8::Isolate* InIsolate, v8::Local<v8::StackTrace> InStack)
+std::string StackTraceToString(v8::Isolate* InIsolate, v8::Local<v8::StackTrace> InStack)
 {
     std::ostringstream stm;
     for (int i = 0; i < InStack->GetFrameCount(); i++)
@@ -91,24 +83,22 @@ PString StackTraceToString(v8::Isolate* InIsolate, v8::Local<v8::StackTrace> InS
             }
             else
             {
-                stm << "    at [eval] (" << (*ScriptName ? *ScriptName : "anonymous") << ":" << LineNumber << ":" << Column << ")"
-                    << std::endl;
+                stm << "    at [eval] (" << *ScriptName << ":" << LineNumber << ":" << Column << ")" << std::endl;
             }
             break;
         }
 
         if (FuncName.length() == 0)
         {
-            stm << "    at " << (*ScriptName ? *ScriptName : "anonymous") << ":" << LineNumber << ":" << Column << std::endl;
+            stm << "    at " << *ScriptName << ":" << LineNumber << ":" << Column << std::endl;
         }
         else
         {
-            stm << "    at " << *FuncName << "(" << (*ScriptName ? *ScriptName : "anonymous") << ":" << LineNumber << ":" << Column
-                << ")" << std::endl;
+            stm << "    at " << *FuncName << "(" << *ScriptName << ":" << LineNumber << ":" << Column << ")" << std::endl;
         }
     }
-    return stm.str().c_str();
+    return stm.str();
 }
 #endif
 
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

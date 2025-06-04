@@ -2,7 +2,7 @@
 #include "V8Utils.h"
 #include "ObjectMapper.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 v8::Local<v8::FunctionTemplate> FSoftObjectWrapper::ToFunctionTemplate(v8::Isolate* Isolate)
 {
@@ -86,4 +86,4 @@ void FSoftObjectWrapper::Get(const v8::FunctionCallbackInfo<v8::Value>& Info)
 {
     GenericObjectGet(Info, [](FSoftObjectPtr* Ptr) { return Ptr->Get(); });
 }
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

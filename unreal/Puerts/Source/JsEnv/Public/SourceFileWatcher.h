@@ -12,9 +12,8 @@
 #include "IDirectoryWatcher.h"
 #include "Misc/SecureHash.h"
 #include <functional>
-#include "PuertsNamespaceDef.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class JSENV_API FSourceFileWatcher
 {
@@ -36,5 +35,5 @@ private:
 
     std::function<void(const FString&)> OnWatchedFileChanged;
 };
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts
 #endif

@@ -461,7 +461,7 @@ private:
      * @param InClass
      * @param InBlueprint
      */
-    bool SyncClassToBlueprint(UClass* InClass, UBlueprint* InBlueprint);
+    static void SyncClassToBlueprint(UClass* InClass, UBlueprint* InBlueprint);
 
 private:
     /**

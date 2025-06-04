@@ -8,23 +8,14 @@
 
 #include "CoreUObject.h"
 #include "Features/IModularFeatures.h"
-#include "Runtime/Launch/Resources/Version.h"
-#if ENGINE_MAJOR_VERSION < 5 || ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION < 2
 #include "IScriptGeneratorPluginInterface.h"
-#endif
 #include "Runtime/Launch/Resources/Version.h"
 #include "PropertyMacros.h"
 
 #define LOCTEXT_NAMESPACE "FParamDefaultValueMetasModule"
 
-class FParamDefaultValueMetasModule
-#if ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION >= 2
-    : public IModuleInterface
-#else
-    : public IScriptGeneratorPluginInterface
-#endif
+class FParamDefaultValueMetasModule : public IScriptGeneratorPluginInterface
 {
-#if ENGINE_MAJOR_VERSION < 5 || ENGINE_MAJOR_VERSION >= 5 && ENGINE_MINOR_VERSION < 2
 public:
     virtual void StartupModule() override
     {
@@ -156,7 +147,6 @@ private:
     FString GeneratedFileContent;
 
     bool Finished = false;
-#endif
 };
 
 #undef LOCTEXT_NAMESPACE

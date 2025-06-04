@@ -27,9 +27,8 @@ bool UPEDirectoryWatcher::Watch(const FString& InDirectory)
                 for (auto Change : FileChanges)
                 {
                     //因为要算md5，所有过滤掉不关心的
-                    if (!Change.Filename.EndsWith(TEXT(".ts")) && !Change.Filename.EndsWith(TEXT(".mts")) &&
-                        !Change.Filename.EndsWith(TEXT(".tsx")) && !Change.Filename.EndsWith(TEXT(".json")) &&
-                        !Change.Filename.EndsWith(TEXT(".js")))
+                    if (!Change.Filename.EndsWith(TEXT(".ts")) && !Change.Filename.EndsWith(TEXT(".tsx")) &&
+                        !Change.Filename.EndsWith(TEXT(".json")) && !Change.Filename.EndsWith(TEXT(".js")))
                     {
                         continue;
                     }
@@ -56,10 +55,7 @@ bool UPEDirectoryWatcher::Watch(const FString& InDirectory)
                             continue;
                     }
                 }
-                if (Added.Num() || Modified.Num() || Removed.Num())
-                {
-                    OnChanged.Broadcast(Added, Modified, Removed);
-                }
+                OnChanged.Broadcast(Added, Modified, Removed);
             });
         FDirectoryWatcherModule& DirectoryWatcherModule =
             FModuleManager::Get().LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher"));

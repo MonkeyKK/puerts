@@ -9,18 +9,15 @@ using System;
 using System.IO;
 using UnrealBuildTool;
 
-public class Puerts : ModuleRules 
-{
-    public Puerts(ReadOnlyTargetRules Target) : base(Target) 
-    {
+public class Puerts : ModuleRules {
+    public Puerts(ReadOnlyTargetRules target) : base(target) {
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
                 "Core", "CoreUObject", "Engine", "InputCore", "Serialization", "OpenSSL","UMG","JsEnv",
             }
         );
-        
-        if (Target.bBuildEditor == true)
+        if (target.bBuildEditor == true)
         {
             PrivateDependencyModuleNames.Add("UnrealEd");
         }

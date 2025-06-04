@@ -8,16 +8,13 @@
 
 #pragma once
 
-#include "NamespaceDef.h"
+#pragma warning(push, 0)
+#include "v8.h"
+#pragma warning(pop)
 
 #include "Binding.hpp"
 #include "JSLogger.h"
 #include "V8Utils.h"
-
-namespace PUERTS_NAMESPACE
-{
-class FJsObjectPropertyTranslator;
-}
 
 #include "CoreMinimal.h"
 #include "JsObject.generated.h"
@@ -34,100 +31,38 @@ public:
 
     FJsObject(const FJsObject& InOther)
     {
-        if (InOther.JsEnvLifeCycleTracker.expired())
-        {
-            JsEnvLifeCycleTracker = InOther.JsEnvLifeCycleTracker;
-            if (!JsEnvLifeCycleTracker.expired())
-            {
-                GObject.Reset();
-                GContext.Reset();
-                Isolate = nullptr;
-            }
-            return;
-        }
         Isolate = InOther.Isolate;
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
-        v8::Isolate::Scope IsolateScope(Isolate);
-        v8::HandleScope HandleScope(Isolate);
         GContext.Reset(Isolate, InOther.GContext.Get(Isolate));
         GObject.Reset(Isolate, InOther.GObject.Get(Isolate));
-        JsEnvLifeCycleTracker = PUERTS_NAMESPACE::DataTransfer::GetJsEnvLifeCycleTracker(Isolate);
     }
 
     FJsObject(v8::Local<v8::Context> InContext, v8::Local<v8::Object> InObject)
         : Isolate(InContext->GetIsolate()), GContext(InContext->GetIsolate(), InContext), GObject(InContext->GetIsolate(), InObject)
     {
-        JsEnvLifeCycleTracker = PUERTS_NAMESPACE::DataTransfer::GetJsEnvLifeCycleTracker(Isolate);
-    }
-
-    ~FJsObject()
-    {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-#if V8_MAJOR_VERSION < 11
-            GObject.Empty();
-            GContext.Empty();
-#endif
-        }
-        else
-        {
-#ifdef THREAD_SAFE
-            v8::Locker Locker(Isolate);
-#endif
-            GObject.Reset();
-            GContext.Reset();
-        }
     }
 
     FJsObject& operator=(const FJsObject& InOther)
     {
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
-        if (InOther.JsEnvLifeCycleTracker.expired())
-        {
-            JsEnvLifeCycleTracker = InOther.JsEnvLifeCycleTracker;
-            if (!JsEnvLifeCycleTracker.expired())
-            {
-                GObject.Reset();
-                GContext.Reset();
-                Isolate = nullptr;
-            }
-            return *this;
-        }
         Isolate = InOther.Isolate;
-        v8::Isolate::Scope IsolateScope(Isolate);
-        v8::HandleScope HandleScope(Isolate);
         GContext.Reset(Isolate, InOther.GContext.Get(Isolate));
         GObject.Reset(Isolate, InOther.GObject.Get(Isolate));
-        JsEnvLifeCycleTracker = PUERTS_NAMESPACE::DataTransfer::GetJsEnvLifeCycleTracker(Isolate);
         return *this;
     }
 
     template <typename T>
     T Get(const char* Key) const
     {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-            UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
-            return {};
-        }
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
         v8::Context::Scope ContextScope(Context);
         auto Object = GObject.Get(Isolate);
 
-        auto MaybeValue = Object->Get(Context, PUERTS_NAMESPACE::v8_impl::Converter<const char*>::toScript(Context, Key));
+        auto MaybeValue = Object->Get(Context, puerts::converter::Converter<const char*>::toScript(Context, Key));
         v8::Local<v8::Value> Val;
         if (MaybeValue.ToLocal(&Val))
         {
-            return PUERTS_NAMESPACE::v8_impl::Converter<T>::toCpp(Context, Val);
+            return puerts::converter::Converter<T>::toCpp(Context, Val);
         }
         return {};
     }
@@ -135,35 +70,19 @@ public:
     template <typename T>
     void Set(const char* Key, T Val) const
     {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-            UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
-            return;
-        }
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
         v8::Context::Scope ContextScope(Context);
         auto Object = GObject.Get(Isolate);
 
-        auto _UnUsed = Object->Set(Context, PUERTS_NAMESPACE::v8_impl::Converter<const char*>::toScript(Context, Key),
-            PUERTS_NAMESPACE::v8_impl::Converter<T>::toScript(Context, Val));
+        auto _UnUsed = Object->Set(Context, puerts::converter::Converter<const char*>::toScript(Context, Key),
+            puerts::converter::Converter<T>::toScript(Context, Val));
     }
 
     template <typename... Args>
     void Action(Args... cppArgs) const
     {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-            UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
-            return;
-        }
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -183,22 +102,13 @@ public:
 
         if (TryCatch.HasCaught())
         {
-            UE_LOG(
-                Puerts, Error, TEXT("call function throw: %s"), *PUERTS_NAMESPACE::FV8Utils::TryCatchToString(Isolate, &TryCatch));
+            UE_LOG(Puerts, Error, TEXT("call function throw: %s"), *puerts::FV8Utils::TryCatchToString(Isolate, &TryCatch));
         }
     }
 
     template <typename Ret, typename... Args>
     Ret Func(Args... cppArgs) const
     {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-            UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
-            return {};
-        }
-#ifdef THREAD_SAFE
-        v8::Locker Locker(Isolate);
-#endif
         v8::Isolate::Scope IsolateScope(Isolate);
         v8::HandleScope HandleScope(Isolate);
         auto Context = GContext.Get(Isolate);
@@ -218,25 +128,18 @@ public:
 
         if (TryCatch.HasCaught())
         {
-            UE_LOG(
-                Puerts, Error, TEXT("call function throw: %s"), *PUERTS_NAMESPACE::FV8Utils::TryCatchToString(Isolate, &TryCatch));
+            UE_LOG(Puerts, Error, TEXT("call function throw: %s"), *puerts::FV8Utils::TryCatchToString(Isolate, &TryCatch));
         }
 
         if (!MaybeRet.IsEmpty())
         {
-            return PUERTS_NAMESPACE::v8_impl::Converter<Ret>::toCpp(Context, MaybeRet.ToLocalChecked());
+            return puerts::converter::Converter<Ret>::toCpp(Context, MaybeRet.ToLocalChecked());
         }
         return {};
     }
 
-private:
     FORCEINLINE v8::Local<v8::Object> GetJsObject() const
     {
-        if (JsEnvLifeCycleTracker.expired())
-        {
-            UE_LOG(Puerts, Error, TEXT("JsEnv associated had release!"));
-            return {};
-        }
         if (!GObject.IsEmpty())
         {
             return GObject.Get(Isolate);
@@ -247,10 +150,11 @@ private:
         }
     }
 
+private:
     template <typename... Args>
     FORCEINLINE auto InvokeHelper(v8::Local<v8::Context>& Context, v8::Local<v8::Object>& Object, Args... CppArgs) const
     {
-        v8::Local<v8::Value> Argv[sizeof...(Args)]{PUERTS_NAMESPACE::v8_impl::Converter<Args>::toScript(Context, CppArgs)...};
+        v8::Local<v8::Value> Argv[sizeof...(Args)]{puerts::converter::Converter<Args>::toScript(Context, CppArgs)...};
         return Object.As<v8::Function>()->Call(Context, v8::Undefined(Isolate), sizeof...(Args), Argv);
     }
 
@@ -261,31 +165,24 @@ private:
 
 private:
     v8::Isolate* Isolate;
-#if V8_MAJOR_VERSION >= 11
-    v8::Persistent<v8::Context> GContext;
-    v8::Persistent<v8::Object> GObject;
-#else
     v8::Global<v8::Context> GContext;
     v8::Global<v8::Object> GObject;
-#endif
-    std::weak_ptr<int> JsEnvLifeCycleTracker;
 
-    friend struct PUERTS_NAMESPACE::v8_impl::Converter<FJsObject>;
-    friend class PUERTS_NAMESPACE::FJsObjectPropertyTranslator;
+    friend struct puerts::converter::Converter<FJsObject>;
 };
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 template <>
 struct ScriptTypeName<FJsObject>
 {
     static constexpr auto value()
     {
-        return internal::Literal("object");
+        return Literal("object");
     }
 };
 
-namespace v8_impl
+namespace converter
 {
 template <>
 struct Converter<FJsObject>
@@ -305,5 +202,5 @@ struct Converter<FJsObject>
         return value->IsObject();
     }
 };
-}    // namespace v8_impl
-}    // namespace PUERTS_NAMESPACE
+}    // namespace converter
+}    // namespace puerts

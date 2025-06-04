@@ -9,11 +9,10 @@
 #include "StructWrapper.h"
 #include "V8Utils.h"
 #include "ObjectMapper.h"
-#include "PathEscape.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
-void FStructWrapper::AddExtensionMethods(const std::vector<UFunction*>& InExtensionMethods)
+void FStructWrapper::AddExtensionMethods(std::vector<UFunction*> InExtensionMethods)
 {
     ExtensionMethods.insert(ExtensionMethods.end(), InExtensionMethods.begin(), InExtensionMethods.end());
 }
@@ -77,8 +76,6 @@ void FStructWrapper::RefreshMethod(UFunction* InFunction)
     }
 }
 
-MSVC_PRAGMA(warning(push))
-MSVC_PRAGMA(warning(disable : 4191))
 void FStructWrapper::InitTemplateProperties(
     v8::Isolate* Isolate, UStruct* InStruct, v8::Local<v8::FunctionTemplate> Template, bool IsReuseTemplate)
 {
@@ -95,22 +92,12 @@ void FStructWrapper::InitTemplateProperties(
                 v8::PropertyAttribute PropertyAttribute = v8::DontDelete;
                 if (!PropertyInfo->Setter)
                     PropertyAttribute = (v8::PropertyAttribute)(PropertyAttribute | v8::ReadOnly);
-                auto GetterData = PropertyInfo->GetterData
-                                      ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->GetterData))
-                                      : v8::Local<v8::Value>();
-
-                auto SetterData = PropertyInfo->SetterData
-                                      ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->SetterData))
-                                      : v8::Local<v8::Value>();
+                auto Data = PropertyInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->Data))
+                                               : v8::Local<v8::Value>();
 
                 Template->PrototypeTemplate()->SetAccessorProperty(FV8Utils::InternalString(Isolate, PropertyInfo->Name),
-                    PropertyInfo->Getter
-                        ? v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) PropertyInfo->Getter, GetterData)
-                        : v8::Local<v8::FunctionTemplate>(),
-                    PropertyInfo->Setter
-                        ? v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) PropertyInfo->Setter, SetterData)
-                        : v8::Local<v8::FunctionTemplate>(),
-                    PropertyAttribute);
+                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data),
+                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data), PropertyAttribute);
             }
             ++PropertyInfo;
         }
@@ -123,22 +110,12 @@ void FStructWrapper::InitTemplateProperties(
                 v8::PropertyAttribute PropertyAttribute = v8::DontDelete;
                 if (!PropertyInfo->Setter)
                     PropertyAttribute = (v8::PropertyAttribute)(PropertyAttribute | v8::ReadOnly);
-                auto GetterData = PropertyInfo->GetterData
-                                      ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->GetterData))
-                                      : v8::Local<v8::Value>();
-
-                auto SetterData = PropertyInfo->SetterData
-                                      ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->SetterData))
-                                      : v8::Local<v8::Value>();
+                auto Data = PropertyInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, PropertyInfo->Data))
+                                               : v8::Local<v8::Value>();
 
                 Template->SetAccessorProperty(FV8Utils::InternalString(Isolate, PropertyInfo->Name),
-                    PropertyInfo->Getter
-                        ? v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) PropertyInfo->Getter, GetterData)
-                        : v8::Local<v8::FunctionTemplate>(),
-                    PropertyInfo->Setter
-                        ? v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) PropertyInfo->Setter, SetterData)
-                        : v8::Local<v8::FunctionTemplate>(),
-                    PropertyAttribute);
+                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Getter, Data),
+                    v8::FunctionTemplate::New(Isolate, PropertyInfo->Setter, Data), PropertyAttribute);
                 ++PropertyInfo;
             }
         }
@@ -166,6 +143,7 @@ void FStructWrapper::InitTemplateProperties(
 
 v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* Isolate, v8::FunctionCallback Construtor)
 {
+    v8::EscapableHandleScope HandleScope(Isolate);
     auto ClassDefinition = FindClassByType(Struct.Get());
     bool IsReuseTemplate = false;
 #if PUERTS_REUSE_STRUCTWRAPPER_FUNCTIONTEMPLATE
@@ -180,7 +158,7 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
     auto Result = CachedFunctionTemplate.Get(Isolate);
 #else
     auto Result = v8::FunctionTemplate::New(
-        Isolate, Construtor, v8::External::New(Isolate, this));    // 和class的区别就这里传的函数不一样，后续尽量重用
+        Isolate, Construtor, v8::External::New(Isolate, this));    //和class的区别就这里传的函数不一样，后续尽量重用
     Result->InstanceTemplate()->SetInternalFieldCount(4);
 #endif
 
@@ -189,7 +167,7 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
 
     if (ClassDefinition)
     {
-        ExternalInitialize = (V8InitializeFuncType) ClassDefinition->Initialize;
+        ExternalInitialize = ClassDefinition->Initialize;
         ExternalFinalize = ClassDefinition->Finalize;
         JSFunctionInfo* FunctionInfo = ClassDefinition->Methods;
         while (FunctionInfo && FunctionInfo->Name && FunctionInfo->Callback)
@@ -197,25 +175,10 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
             AddedMethods.Add(FunctionInfo->Name);
             if (!IsReuseTemplate)
             {
-#ifndef WITH_QUICKJS
-                auto FastCallInfo = FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr;
-                if (FastCallInfo)
-                {
-                    Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                        v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) FunctionInfo->Callback,
-                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                               : v8::Local<v8::Value>(),
-                            v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kThrow, v8::SideEffectType::kHasSideEffect,
-                            FastCallInfo));
-                }
-                else
-#endif
-                {
-                    Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                        v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) FunctionInfo->Callback,
-                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                               : v8::Local<v8::Value>()));
-                }
+                Result->PrototypeTemplate()->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                           : v8::Local<v8::Value>()));
             }
             ++FunctionInfo;
         }
@@ -225,25 +188,10 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
             AddedFunctions.Add(FunctionInfo->Name);
             if (!IsReuseTemplate)
             {
-#ifndef WITH_QUICKJS
-                auto FastCallInfo = FunctionInfo->ReflectionInfo ? FunctionInfo->ReflectionInfo->FastCallInfo() : nullptr;
-                if (FastCallInfo)
-                {
-                    Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                        v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) FunctionInfo->Callback,
-                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                               : v8::Local<v8::Value>(),
-                            v8::Local<v8::Signature>(), 0, v8::ConstructorBehavior::kThrow, v8::SideEffectType::kHasSideEffect,
-                            FastCallInfo));
-                }
-                else
-#endif
-                {
-                    Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
-                        v8::FunctionTemplate::New(Isolate, (v8::FunctionCallback) FunctionInfo->Callback,
-                            FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
-                                               : v8::Local<v8::Value>()));
-                }
+                Result->Set(FV8Utils::InternalString(Isolate, FunctionInfo->Name),
+                    v8::FunctionTemplate::New(Isolate, FunctionInfo->Callback,
+                        FunctionInfo->Data ? static_cast<v8::Local<v8::Value>>(v8::External::New(Isolate, FunctionInfo->Data))
+                                           : v8::Local<v8::Value>()));
             }
             ++FunctionInfo;
         }
@@ -264,48 +212,21 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
                 continue;
             }
 
-            FString FuncName = Function->GetName();
-            auto Key = FV8Utils::InternalString(Isolate, FuncName);
-#ifdef PUERTS_WITH_EDITOR_SUFFIX
-            // 这里同时绑定带Suffix和不带Suffix的后缀是为了兼容现有的一些js写的代码(PuertsEditor)
-            v8::Local<v8::String> AdditionalKey{};
-            if (puerts::IsEditorOnlyUFunction(Function))
-            {
-                FString SuffixFuncName = FuncName + EditorOnlyPropertySuffix.GetData();
-                AdditionalKey = FV8Utils::InternalString(Isolate, SuffixFuncName);
-            }
-#endif
-            // 这里同时绑定带Suffix和不带Suffix的后缀是为了兼容现有的一些js写的代码(PuertsEditor)
+            auto Key = FV8Utils::InternalString(Isolate, Function->GetName());
 
             if (Function->HasAnyFunctionFlags(FUNC_Static))
             {
                 auto FunctionTranslator = GetFunctionTranslator(Function);
                 AddedFunctions.Add(Function->GetFName());
                 if (!IsReuseTemplate)
-                {
                     Result->Set(Key, FunctionTranslator->ToFunctionTemplate(Isolate));
-#ifdef PUERTS_WITH_EDITOR_SUFFIX
-                    if (!AdditionalKey.IsEmpty())
-                    {
-                        Result->Set(AdditionalKey, FunctionTranslator->ToFunctionTemplate(Isolate));
-                    }
-#endif
-                }
             }
             else
             {
                 auto FunctionTranslator = GetMethodTranslator(Function, false);
                 AddedMethods.Add(Function->GetFName());
                 if (!IsReuseTemplate)
-                {
                     Result->PrototypeTemplate()->Set(Key, FunctionTranslator->ToFunctionTemplate(Isolate));
-#ifdef PUERTS_WITH_EDITOR_SUFFIX
-                    if (!AdditionalKey.IsEmpty())
-                    {
-                        Result->PrototypeTemplate()->Set(AdditionalKey, FunctionTranslator->ToFunctionTemplate(Isolate));
-                    }
-#endif
-                }
             }
         }
 
@@ -456,9 +377,8 @@ v8::Local<v8::FunctionTemplate> FStructWrapper::ToFunctionTemplate(v8::Isolate* 
             nullptr, nullptr, nullptr, v8::Local<v8::Value>(), v8::PropertyHandlerFlags::kNonMasking));
 #endif
 
-    return Result;
+    return HandleScope.Escape(Result);
 }
-MSVC_PRAGMA(warning(pop))
 
 void FStructWrapper::StaticClass(const v8::FunctionCallbackInfo<v8::Value>& Info)
 {
@@ -469,12 +389,6 @@ void FStructWrapper::StaticClass(const v8::FunctionCallbackInfo<v8::Value>& Info
     v8::Context::Scope ContextScope(Context);
 
     FStructWrapper* This = reinterpret_cast<FStructWrapper*>((v8::Local<v8::External>::Cast(Info.Data()))->Value());
-
-    if (!This->Struct.IsValid())
-    {
-        FV8Utils::ThrowException(Isolate, "Associated UStruct had been GC");
-        return;
-    }
 
     auto Result =
         FV8Utils::IsolateData<IObjectMapper>(Isolate)->FindOrAdd(Isolate, Context, This->Struct->GetClass(), This->Struct.Get());
@@ -491,31 +405,18 @@ void FStructWrapper::Find(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     FStructWrapper* This = reinterpret_cast<FStructWrapper*>((v8::Local<v8::External>::Cast(Info.Data()))->Value());
 
-    if (!This->Struct.IsValid())
-    {
-        FV8Utils::ThrowException(Isolate, "Associated UStruct had been GC");
-        return;
-    }
-
     UClass* Class = Cast<UClass>(This->Struct);
 
     if (Class && Info.Length() >= 1 && Info[0]->IsString())
     {
-        UObject* Object = nullptr;
+        UObject* Outer = ANY_PACKAGE;
+
         if (Info.Length() > 1)
         {
-            UObject* Outer = FV8Utils::GetUObject(Context, Info[1]);
-            Object = StaticFindObject(Class, Outer, *FV8Utils::ToFString(Isolate, Info[0]), false);
-        }
-        else
-        {
-#if (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 1) || ENGINE_MAJOR_VERSION > 5
-            Object = StaticFindFirstObject(Class, *FV8Utils::ToFString(Isolate, Info[0]));
-#else
-            Object = StaticFindObject(Class, ANY_PACKAGE, *FV8Utils::ToFString(Isolate, Info[0]), false);
-#endif
+            Outer = FV8Utils::GetUObject(Context, Info[1]);
         }
 
+        auto Object = StaticFindObject(Class, Outer, *FV8Utils::ToFString(Isolate, Info[0]), false);
         if (Object)
         {
             auto Result = FV8Utils::IsolateData<IObjectMapper>(Isolate)->FindOrAdd(Isolate, Context, Object->GetClass(), Object);
@@ -542,24 +443,11 @@ void FStructWrapper::Load(const v8::FunctionCallbackInfo<v8::Value>& Info)
 
     FStructWrapper* This = reinterpret_cast<FStructWrapper*>((v8::Local<v8::External>::Cast(Info.Data()))->Value());
 
-    if (!This->Struct.IsValid())
-    {
-        FV8Utils::ThrowException(Isolate, "Associated UStruct had been GC");
-        return;
-    }
-
     UClass* Class = Cast<UClass>(This->Struct);
 
-    if (Class && Info.Length() > 0 && Info[0]->IsString())
+    if (Class && Info.Length() == 1 && Info[0]->IsString())
     {
-        bool UnEscape = false;
-        if (Info.Length() > 1)
-        {
-            UnEscape = Info[1]->BooleanValue(Isolate);
-        }
-        auto Path = FV8Utils::ToFString(Isolate, Info[0]);
-        auto Object =
-            StaticLoadObject(Class, nullptr, UnEscape ? *TypeScriptVariableNameToFilename(Path) : *Path, nullptr, LOAD_NoWarn);
+        auto Object = StaticLoadObject(Class, nullptr, *FV8Utils::ToFString(Isolate, Info[0]), nullptr, LOAD_NoWarn);
         if (Object)
         {
             auto Result = FV8Utils::IsolateData<IObjectMapper>(Isolate)->FindOrAdd(Isolate, Context, Object->GetClass(), Object);
@@ -585,11 +473,6 @@ void FScriptStructWrapper::New(const v8::FunctionCallbackInfo<v8::Value>& Info)
     v8::Context::Scope ContextScope(Context);
 
     FScriptStructWrapper* This = reinterpret_cast<FScriptStructWrapper*>((v8::Local<v8::External>::Cast(Info.Data()))->Value());
-    if (!This->Struct.IsValid())
-    {
-        FV8Utils::ThrowException(Isolate, "Associated UStruct had been GC");
-        return;
-    }
     This->New(Isolate, Context, Info);
 }
 
@@ -601,6 +484,14 @@ void FScriptStructWrapper::New(
         auto Self = Info.This();
         void* Memory = nullptr;
 
+        bool PassByPointer = false;
+
+        if (Info.Length() == 2 && Info[0]->IsExternal())    // Call by Native
+        {
+            Memory = v8::Local<v8::External>::Cast(Info[0])->Value();
+            PassByPointer = Info[1]->BooleanValue(Isolate);
+        }
+        else
         {
             if (ExternalInitialize)
             {
@@ -620,7 +511,7 @@ void FScriptStructWrapper::New(
                 }
             }
         }
-        FV8Utils::IsolateData<IObjectMapper>(Isolate)->BindStruct(this, Memory, Self, false);
+        FV8Utils::IsolateData<IObjectMapper>(Isolate)->BindStruct(this, Memory, Self, PassByPointer);
     }
     else
     {
@@ -635,11 +526,11 @@ void* FScriptStructWrapper::Alloc(UScriptStruct* InScriptStruct)
     return ScriptStructMemory;
 }
 
-void FScriptStructWrapper::Free(TWeakObjectPtr<UStruct> InStruct, pesapi_finalize InExternalFinalize, void* Ptr)
+void FScriptStructWrapper::Free(TWeakObjectPtr<UStruct> InStruct, FinalizeFunc InExternalFinalize, void* Ptr)
 {
     if (InExternalFinalize)
     {
-        InExternalFinalize(Ptr, nullptr, nullptr);
+        InExternalFinalize(Ptr);
     }
     else
     {
@@ -679,11 +570,6 @@ void FClassWrapper::New(const v8::FunctionCallbackInfo<v8::Value>& Info)
     v8::Context::Scope ContextScope(Context);
 
     FClassWrapper* This = reinterpret_cast<FClassWrapper*>((v8::Local<v8::External>::Cast(Info.Data()))->Value());
-    if (!This->Struct.IsValid())
-    {
-        FV8Utils::ThrowException(Isolate, "Associated UStruct had been GC");
-        return;
-    }
     This->New(Isolate, Context, Info);
 }
 
@@ -696,6 +582,15 @@ void FClassWrapper::New(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, c
         UObject* Object = nullptr;
         auto Class = static_cast<UClass*>(Struct.Get());
 
+        if (Info.Length() == 1 && Info[0]->IsExternal())    // Call by Native
+        {
+            Object = reinterpret_cast<UObject*>(v8::Local<v8::External>::Cast(Info[0])->Value());
+            if (!Object->IsValidLowLevel())
+            {
+                Object = nullptr;
+            }
+        }
+        else    // Call by js new
         {
             UObject* Outer = GetTransientPackage();
             FName Name = NAME_None;
@@ -720,11 +615,11 @@ void FClassWrapper::New(v8::Isolate* Isolate, v8::Local<v8::Context>& Context, c
             Object = NewObject<UObject>(Outer, Class, Name, ObjectFlags);
         }
 
-        FV8Utils::IsolateData<IObjectMapper>(Isolate)->Bind(this, Object, Self);
+        FV8Utils::IsolateData<IObjectMapper>(Isolate)->Bind(Class, Object, Self);
     }
     else
     {
         FV8Utils::ThrowException(Isolate, "only call as Construct is supported!");
     }
 }
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts

@@ -8,11 +8,9 @@
 
 #pragma once
 
-#include "PuertsNamespaceDef.h"
-
 #include "CoreMinimal.h"
 
-namespace PUERTS_NAMESPACE
+namespace puerts
 {
 class IJSModuleLoader
 {
@@ -50,4 +48,4 @@ public:
     FString ScriptRoot;
 };
 
-}    // namespace PUERTS_NAMESPACE
+}    // namespace puerts
